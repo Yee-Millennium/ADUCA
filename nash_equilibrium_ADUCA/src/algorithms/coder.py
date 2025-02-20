@@ -85,7 +85,7 @@ def coder(problem: GMVIProblem, exitcriterion: ExitCriterion, parameters, x0=Non
         if iteration % (m * exitcriterion.loggingfreq) == 0:
             x_tilde = x_tilde_sum / A
             elapsed_time = time.time() - starttime
-            opt_measure = problem.residual(x_tilde)
+            opt_measure = problem.residual(x)
             print(f"Elapsed time: {elapsed_time}, Iteration: {iteration}, Opt measure: {opt_measure}")
             logresult(results, iteration, elapsed_time, opt_measure)
             exitflag = CheckExitCondition(exitcriterion, iteration, elapsed_time, opt_measure)
@@ -99,7 +99,7 @@ def coder(problem: GMVIProblem, exitcriterion: ExitCriterion, parameters, x0=Non
 def coder_linesearch(problem: GMVIProblem, exitcriterion: ExitCriterion, parameters, x0=None):
     # Initialize parameters and variables
     n = problem.operator_func.n
-    L = 0.001
+    L = 0.005
     block_size = parameters['block_size']
     blocks = construct_block_range(begin=0, end=n, block_size=block_size)
     m = len(blocks)
@@ -206,7 +206,7 @@ def coder_linesearch(problem: GMVIProblem, exitcriterion: ExitCriterion, paramet
             print(f"!!! L: {L}")
             x_tilde = x_tilde_sum / A
             elapsed_time = time.time() - starttime
-            opt_measure = problem.residual(x_tilde)
+            opt_measure = problem.residual(x)
             print(f"Elapsed time: {elapsed_time}, Iteration: {iteration}, Opt measure: {opt_measure}")
             logresult(results, iteration, elapsed_time, opt_measure, L=L)
             exitflag = CheckExitCondition(exitcriterion, iteration, elapsed_time, opt_measure)

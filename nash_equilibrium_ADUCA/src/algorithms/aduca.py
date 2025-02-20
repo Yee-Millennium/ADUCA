@@ -10,6 +10,7 @@ def aduca_scale(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters,
     # Init of adapCODER
     n = problem.operator_func.n
     param_L = problem.operator_func.L
+    param_gamma = problem.operator_func.gamma
     beta = parameters["beta"]
     xi = parameters["xi"]
 
@@ -35,7 +36,7 @@ def aduca_scale(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters,
         F_tilde_diff = np.copy(F-F_tilde)
         L_hat_k = np.sqrt(np.inner(F_tilde_diff, (normalizer * F_tilde_diff)) / np.inner(u_diff, (normalizer_recip * u_diff))) 
         if L_hat_k == 0:
-            step_2 = 1000
+            step_2 = 100000
         else:    
             step_2 = (phi_4 / L_hat_k) * (a / a_)**0.5    
 
@@ -43,29 +44,25 @@ def aduca_scale(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters,
         L_k = np.sqrt(np.inner(F_diff, (normalizer * F_diff)) / np.inner(u_diff, (normalizer_recip * u_diff)))
         # print(f"!!! L_k: {L_k}")
         if L_k == 0:
-            step_3 = 1000
+            step_3 = 100000
         else:
             step_3 = (phi_5 ** 2) / (a_ * L_k**2)  
             # print(f"!!! step_3: {step_3}")
         
         step = min(step_1, step_2, step_3)
         # print(f" !!! Stepsize: {step}")
-        if step < 0.000001:
-            step = 0.00001
         return step, L_k , L_hat_k
 
     ### normalizers
     time_start_initialization = time.time()
 
+
     # normalizers = np.power(np.copy(1/param_L), np.copy(1/problem.operator_func.beta))
     # normalizers_recip = np.copy(1/normalizers)
-    # print(f"!!! param_L: {param_L}")
-    # print(f"!!! normalizers: {normalizers}")
-    # exit()
-    # normalizers = np.copy(1/param_L)
-    # normalizers_recip = np.copy(1/normalizers)
-    normalizers = np.ones(n)
-    normalizers_recip = np.ones(n)
+    normalizers = np.power(np.copy(1/param_L), np.copy(1/problem.operator_func.beta)) * param_gamma / 5000**(1/param_gamma)
+    normalizers_recip = np.copy(1/normalizers)
+    # normalizers = np.ones(n)
+    # normalizers_recip = np.ones(n)
 
     time_end_initialization = time.time()
     logging.info(f"Initialization time = {time_end_initialization - time_start_initialization:.4f} seconds")
@@ -114,7 +111,7 @@ def aduca_scale(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters,
 
         a_0 = a_0 / 2
         u_1 = problem.g_func.prox_opr(u_0 - a_0 * normalizers * F_0)
-        for index, block in enumerate(blocks):
+        for block in blocks:
                 u[block] = u_1[block]
                 F_tilde_1[block] = F_store[block]
 
@@ -164,7 +161,7 @@ def aduca_scale(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters,
         a = step
         A += a
 
-        for index, block in enumerate(blocks, start=0):
+        for block in blocks:
             # Step 8
             F_bar[block] = F_tilde[block] + (a_ / a) * (F_[block] - F_tilde_[block])
             
@@ -173,12 +170,12 @@ def aduca_scale(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters,
 
             # Step 10
             u_[block] = u[block]
-            u[block] = problem.g_func.prox_opr_block(v[block] - a * normalizers[index] * F_bar[block])
+            u[block] = problem.g_func.prox_opr_block(v[block] - a * normalizers[block] * F_bar[block])
 
             # Step 11
-            Q += np.sum(u[block] - u_[block])
             F_tilde_[block] = F_tilde[block]
             F_tilde[block] = F_store[block]
+            Q += np.sum(u[block] - u_[block])
             p_ = p
             p = problem.operator_func.p(Q)
             dp_ = dp
@@ -245,7 +242,7 @@ def aduca_restart_scale(problem: GMVIProblem, exit_criterion: ExitCriterion, par
         F_tilde_diff = np.copy(F-F_tilde)
         L_hat_k = np.sqrt(np.inner(F_tilde_diff, (normalizer * F_tilde_diff)) / np.inner(u_diff, (normalizer_recip * u_diff))) 
         if L_hat_k == 0:
-            step_2 = 1000
+            step_2 = 100000
         else:    
             step_2 = (phi_4 / L_hat_k) * (a / a_)**0.5    
 
@@ -253,7 +250,7 @@ def aduca_restart_scale(problem: GMVIProblem, exit_criterion: ExitCriterion, par
         L_k = np.sqrt(np.inner(F_diff, (normalizer * F_diff)) / np.inner(u_diff, (normalizer_recip * u_diff)))
         # print(f"!!! L_k: {L_k}")
         if L_k == 0:
-            step_3 = 1000
+            step_3 = 100000
         else:
             step_3 = (phi_5 ** 2) / (a_ * L_k**2)  
             # print(f"!!! step_3: {step_3}")
@@ -265,8 +262,10 @@ def aduca_restart_scale(problem: GMVIProblem, exit_criterion: ExitCriterion, par
     ### normalizers
     time_start_initialization = time.time()
 
-    normalizers = np.ones(n)
-    normalizers_recip = np.ones(n)
+    normalizers = np.power(np.copy(1/param_L), np.copy(1/problem.operator_func.beta))
+    normalizers_recip = np.copy(1/normalizers)
+    # normalizers = np.ones(n)
+    # normalizers_recip = np.ones(n)
 
     time_end_initialization = time.time()
     logging.info(f"Initialization time = {time_end_initialization - time_start_initialization:.4f} seconds")
@@ -319,7 +318,7 @@ def aduca_restart_scale(problem: GMVIProblem, exit_criterion: ExitCriterion, par
             a_0 = a_0 / 2
             u_1 = problem.g_func.prox_opr(u_0 - a_0 * normalizers * F_0)
 
-            for index,block in enumerate(blocks):
+            for block in blocks:
                 u[block] = u_1[block]
                 F_tilde_1[block] = F_store[block]
 
@@ -366,7 +365,7 @@ def aduca_restart_scale(problem: GMVIProblem, exit_criterion: ExitCriterion, par
             a = step
             A += a
 
-            for index, block in enumerate(blocks, start=0):
+            for block in blocks:
                 # Step 8
                 F_bar[block] = F_tilde[block] + (a_ / a) * (F_[block] - F_tilde_[block])
             
@@ -375,7 +374,7 @@ def aduca_restart_scale(problem: GMVIProblem, exit_criterion: ExitCriterion, par
 
                 # Step 10
                 u_[block] = u[block]
-                u[block] = problem.g_func.prox_opr_block(v[block] - a * normalizers[index] * F_bar[block])
+                u[block] = problem.g_func.prox_opr_block(v[block] - a * normalizers[block] * F_bar[block])
 
                 # Step 11
                 Q += np.sum(u[block] - u_[block])

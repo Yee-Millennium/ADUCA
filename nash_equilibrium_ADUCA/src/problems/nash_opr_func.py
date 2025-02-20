@@ -3,7 +3,7 @@ import warnings
 # from scipy.linalg.blas import dgemm
 from scipy.sparse import csr_matrix
 
-class SVMElasticOprFunc:
+class NASHOprFunc:
     def __init__(self, n, gamma, beta, c , L):
         self.n = n
         self.gamma = gamma

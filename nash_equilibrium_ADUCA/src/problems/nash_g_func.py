@@ -1,6 +1,6 @@
 import numpy as np
 
-class SVMElasticGFunc:
+class NASHGFunc:
     def __init__(self, n):
         self.n = n
 
