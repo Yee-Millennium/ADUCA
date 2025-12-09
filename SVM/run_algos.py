@@ -18,7 +18,7 @@ from src.algorithms.pccm import pccm
 from src.algorithms.prcm import prcm
 from src.algorithms.rapd import rapd
 from src.algorithms.gr import gr
-from src.algorithms.aduca import aduca_scale
+from src.algorithms.aduca import aduca
 from src.problems.utils.data_parsers import libsvm_parser
 from src.problems.utils.data import Data
 from src.problems.GMVI_func import GMVIProblem
@@ -183,6 +183,7 @@ def main():
         block_size_2 = args.block_size_2
         prcm_params = {"L": L, "mu": mu, "block_size": block_size, "block_size_2": block_size_2}
         output, output_x = prcm(problem, exitcriterion, prcm_params)
+
     elif algorithm == "GR":
         beta = args.beta
         block_size = args.block_size
@@ -190,40 +191,17 @@ def main():
         logging.info("Running Golden Ratio...")
         param = {"beta": beta, "block_size": block_size, "block_size_2": block_size_2}
         output, output_x = gr(problem, exitcriterion, param)
-    # elif algorithm == "ADUCA_restart":
-    #     beta = args.beta
-    #     c = args.c
-    #     restartfreq = args.restartfreq
-    #     block_size = args.block_size
-    #     logging.info("Running ADUCA_restart...")
-    #     param = {"beta": beta, "c": c, "restartfreq": restartfreq, "block_size": block_size}
-    #     output, output_x = aduca_restart(problem, exitcriterion, param)
-    # elif algorithm == "ADUCA":
-    #     beta = args.beta
-    #     c = args.c
-    #     block_size = args.block_size
-    #     logging.info("Running ADUCA...")
-    #     param = {"beta": beta, "c": c, "block_size": block_size}
-    #     output, output_x = aduca(problem, exitcriterion, param)
-    # elif algorithm == "ADUCA_restart_scale":
-    #     beta = args.beta
-    #     xi = args.xi
-    #     restartfreq = args.restartfreq
-    #     block_size = args.block_size
-    #     block_size_2 = args.block_size_2
-    #     logging.info("Running ADUCA_restart_scale...")
-    #     param = {"beta": beta, "xi": xi, "restartfreq": restartfreq, "block_size": block_size, "block_size_2": block_size_2}
-    #     output, output_x = aduca_restart_scale(problem, exitcriterion, param)
-    elif algorithm == "ADUCA_scale":
+
+    elif algorithm == "ADUCA":
         beta = args.beta
         xi = args.xi
         mu = args.mu
         phi_1= args.phi_1
         block_size = args.block_size
         block_size_2 = args.block_size_2
-        logging.info("Running ADUCA_scale...")
+        logging.info("Running ADUCA...")
         param = {"beta": beta, "xi": xi, "mu": mu, "phi_1": phi_1, "block_size": block_size, "block_size_2": block_size_2}
-        output, output_x = aduca_scale(problem, exitcriterion, param)
+        output, output_x = aduca(problem, exitcriterion, param)
 
     else:
         print("Wrong algorithm name supplied")
