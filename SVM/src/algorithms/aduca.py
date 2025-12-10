@@ -77,7 +77,8 @@ def aduca(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters, u_0=N
         normalizers_2.append(normalizer)
 
     # Compute Lipschitz constant estimates
-    X = b * A_matrix / n
+    # Multiply each row i of A by its corresponding label b_i.
+    X = (b[:, None] * A_matrix) / n
     sigma_max = np.linalg.norm(X, 2)  
     norm_Q = sigma_max**2
     print(f"!!! The L: {max_norm / np.sqrt(n)}")
@@ -150,7 +151,6 @@ def aduca(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters, u_0=N
 
         # Stepsize selection
         step = min(step_1, step_2, step_3)
-        # print(f" !!! Stepsize: {step}")
         return step, L_k , L_hat_k
     ###
 
@@ -262,6 +262,5 @@ def aduca(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters, u_0=N
 
     
                 
-
 
 

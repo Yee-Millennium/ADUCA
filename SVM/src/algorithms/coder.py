@@ -80,27 +80,6 @@ def coder(problem: GMVIProblem, exitcriterion: ExitCriterion, parameters, x0=Non
 
             # F_store = problem.operator_func.func_map_coordinate_update(F_store, x[j], x_prev[j], j)
             F_store = problem.operator_func.func_map_block_update(F_store, x[block], x_prev[block], block)
-            # print(f"!!! x[j]: {x[j]}")
-            # print(f"!!! x_temp[j]: {x_temp[j]}")
-            # if j < m-1:
-            #     # print(f"!!! F_store[j+1]: {F_store[j+1]}")
-            #     # print(f"!!! F_store_temp[j+1]: {F_store_temp[j+1]}")
-            #     if (not np.array_equal(x, x_temp)) or (not np.array_equal(F_store, F_store_temp)):
-            #         if not np.array_equal(x, x_temp):
-            #             print("YES!!!")
-            #         if not np.array_equal(F_store, F_store_temp):
-            #             print("BAD!!!!")
-            #             diff_indices = np.where(F_store != F_store_temp)
-            #             print(diff_indices)
-            #             print(f"!!! F_store[13]: {F_store[13]}")
-            #             print(f"!!! F_store_temp[13]: {F_store_temp[13]}")
-            #         print(f"!!! j: {j}")
-            #         exit()
-            # else:
-            #     # print(f"equal? F_store and F_store_temp: {np.array_equal(F_store, F_store_temp)}")
-            #     # print(f"equal? x and x_temp: {np.array_equal(x, x_temp)}")
-            #     if not np.array_equal(F_store, F_store_temp) or not np.array_equal(x, x_temp):
-            #         exit()
 
         x_tilde_sum += a * x
         iteration += m

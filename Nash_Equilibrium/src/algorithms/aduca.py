@@ -6,7 +6,7 @@ from src.problems.GMVI_func import GMVIProblem
 from src.algorithms.utils.results import Results, logresult
 from src.algorithms.utils.helper import construct_block_range
 
-def aduca_scale(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters, u_0=None):
+def aduca(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters, u_0=None):
     # Init of adapCODER
     n = problem.operator_func.n
     param_L = problem.operator_func.L

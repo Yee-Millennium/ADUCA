@@ -36,30 +36,12 @@ os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
 ## (Dimension, Sample size)
 DATASET_INFO = { 
-    "sonar_scale": (60, 208),
-    "a1a": (123, 1605),
     "a9a": (123, 32561),
     "gisette_scale": (5000, 6000),
-    "news20": (1355191, 19996),
-    "rcv1": (47236, 20242),
-    "phishing": (68, 11055),
-    "colon-cancer": (2000, 62),
-    "madelon": (500, 2000),
-    "mushrooms": (112, 8124),
-    "skin_nonskin": (3, 245057),
-    "SUSY": (18,5000000),
-    "epsilon_normalized": (2000,400000),
-    "HIGGS": (28, 11000000),
-    "ijcnn1": (22, 49990),
-    "w1a": (300, 2477),
-    "w7a":(300, 24692),
+    "rcv1_train.binary.bz2": (47236, 20242),
     "w8a": (300, 49749),
-    "covtype":(54, 581012),
     "real-sim":(20958, 72309),
-    "cod-rna": (8, 59535),
-    "cod-rna_t": (8, 271617),
-    "cod-rna_r": (8, 157413),
-    "epsilon_normalized_t": (2000,100000)
+    "epsilon_normalized.bz2": (2000,100000)
 }
 
 def parse_commandline():
@@ -170,13 +152,17 @@ def main():
 
     elif algorithm == "ADUCA":
         beta = args.beta
-        xi = args.xi
-        mu = args.mu
-        phi_1= args.phi_1
         block_size = args.block_size
         block_size_2 = args.block_size_2
         logging.info("Running ADUCA...")
-        param = {"beta": beta, "gamma": args.gamma, "rho": args.rho, "mu": mu, "block_size": block_size, "block_size_2": block_size_2}
+        param = {
+            "beta": beta,
+            "gamma": args.gamma,
+            "rho": args.rho,
+            "mu": args.mu,
+            "block_size": block_size,
+            "block_size_2": block_size_2,
+        }
         output, output_x = aduca(problem, exitcriterion, param)
 
     else:
