@@ -76,13 +76,10 @@ def parse_commandline():
     parser.add_argument('--lambda2', type=float, default=0.0, help='Elastic net lambda 2')
     parser.add_argument('--algo', required=True, help='Algorithm to run')
     parser.add_argument('--lipschitz', required=True, type=float, help='Lipschitz constant')
-    parser.add_argument('--M', required=False, type=float, help='Lipschitz constant for codervr')
     parser.add_argument('--mu', type=float, default=0.0, help='Mu')
-    parser.add_argument('--K', type=int, default=0, help='Variance reduction K')
     parser.add_argument('--beta', type = float, help='aduca constant parameter')
-    parser.add_argument('--xi', type = float, help='aduca constant parameter')
-    parser.add_argument('--phi_1', type = float, default=0.0, help='aduca constant parameter')
-    parser.add_argument('--restartfreq', type = int, default=float('inf'), help='aduca_restart constant parameter')
+    parser.add_argument('--gamma', type = float, help='aduca constant parameter')
+    parser.add_argument('--rho', type = float, default=0.0, help='aduca constant parameter')
     parser.add_argument('--block_size', type = int, default=1, help='block_size parameter >= 1, <= n')
     parser.add_argument('--block_size_2', type = int, default=float('inf'), help='block_size parameter >= 1, <= n')
 
@@ -136,6 +133,7 @@ def main():
         block_size_2 = args.block_size_2
         coder_params = {"L": L, "mu": mu, "block_size": block_size, "block_size_2": block_size_2}
         output, output_x = coder(problem, exitcriterion, coder_params)
+
     elif algorithm == "CODER_linesearch":
         logging.info("Running CODER_linesearch...")
         mu = args.mu
@@ -143,28 +141,6 @@ def main():
         block_size_2 = args.block_size_2
         coder_params = {"mu": mu, "block_size": block_size, "block_size_2": block_size_2}
         output, output_x = coder_linesearch(problem, exitcriterion, coder_params)
-
-    elif algorithm == "CODERVR":
-        logging.info("Running CODERVR...")
-        L = args.lipschitz
-        mu = args.mu
-        M = args.M
-        K = args.K
-        block_size = args.block_size
-        codervr_params = {"L": L, "mu": mu, "M": M, "K": K, "block_size": block_size}
-        output, output_x = codervr(problem, exitcriterion, codervr_params)
-        print(f"Output saved to {outputfilename}")
-
-    elif algorithm == "RAPD":
-        logging.info("Running RAPD...")
-        L = args.lipschitz
-        x0 = np.zeros(d)
-        y0 = np.zeros(n)
-        epochs = int(1e12)
-        # print(f"data.values.shape: {data.values.shape}")
-        # print(f"data.features.shape: {data.features.shape}")
-        B = np.array(data.values).reshape(-1, 1) * np.array(data.features)
-        output, output_x = rapd(B, x0, y0, L, epochs, lambda1, lambda2, exitcriterion)
 
     elif algorithm == "PCCM":
         logging.info("Running PCCM...")
@@ -200,7 +176,7 @@ def main():
         block_size = args.block_size
         block_size_2 = args.block_size_2
         logging.info("Running ADUCA...")
-        param = {"beta": beta, "xi": xi, "mu": mu, "phi_1": phi_1, "block_size": block_size, "block_size_2": block_size_2}
+        param = {"beta": beta, "gamma": args.gamma, "rho": args.rho, "mu": mu, "block_size": block_size, "block_size_2": block_size_2}
         output, output_x = aduca(problem, exitcriterion, param)
 
     else:

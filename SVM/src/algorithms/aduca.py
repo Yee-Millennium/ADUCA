@@ -7,16 +7,28 @@ from src.algorithms.utils.results import Results, logresult
 from src.algorithms.utils.helper import construct_block_range
 
 
-# aduca rescaled for SVM 
+""" 
+Aduca rescaled for SVM. Use simple stepsize rule (3.9) in the paper (without \mu > 0 case).
+"""
 def aduca(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters, u_0=None):
-    # Init of adapCODER
+    # Init of ADUCA.
     d = problem.operator_func.d
     n = problem.operator_func.n
-    mu = parameters["mu"]
     beta = parameters["beta"]
-    xi = parameters["xi"]
-    logging.info(f"mu = {mu}")
+    gamma = parameters["gamma"]
+    rho = parameters["rho"]
+    eps = parameters.get("eps", 1e-8)
 
+    rho_0 = min(rho, beta * (1+beta) * (1-gamma))
+    eta = ( (gamma * (1+beta)) / (1 + beta**2))**0.5
+    tau = (3 * rho_0**2 * (1+rho*beta) / (2 *(rho*beta)**2 + 3*rho_0**2*(1+rho*beta)))
+    C = eta / (2*beta**0.5) * (tau**0.5*rho*beta) / (3**0.5 * (1+rho*beta)**0.5)
+    C_hat = eta / (2*beta**0.5) * ((1-tau)*rho*beta)**0.5 / 2**0.5
+    logging.info(f"rho = {rho_0}")
+    logging.info(f"C = {C}")
+    logging.info(f"C_hat = {C_hat}")
+    
+    # Scale the blocks with respect to different variables (x and y).
     block_size = parameters['block_size']
     blocks_1 = construct_block_range(begin=0, end=d, block_size=block_size)
     block_size_2 = parameters['block_size_2']
@@ -28,14 +40,8 @@ def aduca(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters, u_0=N
     logging.info(f"m_1 = {m_1}")
     logging.info(f"m_2 = {m_2}")
     logging.info(f"m = {m}")
-    # print(f"!!! m: {m}")
 
-    phi_2 = xi * beta * (1+beta)
-    phi_3 = 4 / (7 * beta * (1+beta) * (1-xi) )
-    phi_4 = (((1-xi) * (1 + beta))  /  7 * beta)**0.5 * 0.5
-    phi_5 = 1 / (7 * beta)
-
-    ### normalizers
+    # normalizers
     time_start_initialization = time.time()
     A_matrix = problem.operator_func.A
     A_matrix_T = A_matrix.T
@@ -55,7 +61,6 @@ def aduca(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters, u_0=N
     
     normalizers_2 = []
 
-    sum_norm = 0
     max_norm = 0
 
     for block in blocks_2:
@@ -63,7 +68,6 @@ def aduca(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters, u_0=N
         normalizer = np.zeros(size)
         for i in block:
             norm = np.linalg.norm(b[i-d] * A_matrix[i-d])
-            sum_norm += norm
             if norm > max_norm:
                 max_norm = norm
             if norm  != 0:
@@ -71,9 +75,14 @@ def aduca(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters, u_0=N
             else:
                 normalizer[i-block.start] = 1
         normalizers_2.append(normalizer)
-    print(f"!!! The L: {sum_norm / n}")
-    print(f"!!! max_norm: {max_norm}")
-    print(f"!!! The L_hat: {np.sqrt(max_norm**2 / n) }")
+
+    # Compute Lipschitz constant estimates
+    X = b * A_matrix / n
+    sigma_max = np.linalg.norm(X, 2)  
+    norm_Q = sigma_max**2
+    print(f"!!! The L: {max_norm / np.sqrt(n)}")
+    print(f"!!! The L_hat: {norm_Q}")
+
     normalizers = normalizers_1 + normalizers_2
     normalizers = np.concatenate(normalizers, axis=0)
     normalizers_recip = np.where(normalizers != 0, 1 / normalizers, 0)
@@ -114,41 +123,65 @@ def aduca(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters, u_0=N
     F_tilde_0 = np.copy(F_0)
     F_tilde_1 = np.copy(F_tilde_0)
 
-    if mu == 0:
-        alpha = min(phi_2, phi_3)
-        # Stepsize selection function
-        def aduca_stepsize(normalizer, normalizer_recip, u, u_, a, a_, F, F_, F_tilde):
-            step_1 = alpha * a 
+    ###
+    """ 
+    Stepsize selection function
+    """
+    def aduca_stepsize(normalizer, normalizer_recip, u, u_, a, a_, F, F_, F_tilde):
+        # Stepsize option 1
+        step_1 = rho_0 * a 
 
-            u_diff = np.copy(u - u_)
+        # Stepsize option 2
+        u_diff = np.copy(u - u_)
+        F_diff = np.copy(F-F_)
+        L_k = np.sqrt(np.inner(F_diff, (normalizer * F_diff)) / (np.inner(u_diff, (normalizer_recip * u_diff)) + eps))
+        if L_k == 0:
+            step_2 = np.inf
+        else:
+            step_2 = C / L_k * (a / a_)**0.5
 
-            ### we can heuristically scale the step
-            # L_hat_k = np.linalg.norm(F - F_tilde) / (np.linalg.norm(u-u_)) 
-            F_tilde_diff = np.copy(F-F_tilde)
-            L_hat_k = np.sqrt(np.inner(F_tilde_diff, (normalizer * F_tilde_diff)) / np.inner(u_diff, (normalizer_recip * u_diff))) 
-            if L_hat_k == 0:
-                step_2 = 100000
-            else:    
-                step_2 = (phi_2 / L_hat_k) * (a / a_)**0.5    
+        # Stepsize option 3
+        F_tilde_diff = np.copy(F-F_tilde)
+        L_hat_k = np.sqrt(np.inner(F_tilde_diff, (normalizer * F_tilde_diff)) / (np.inner(u_diff, (normalizer_recip * u_diff)) + eps))
+        if L_hat_k == 0:
+            step_3 = np.inf
+        else:    
+            step_3 = (C_hat / L_hat_k) * (a / a_)**0.5    
 
-            F_diff = np.copy(F-F_)
-            L_k = np.sqrt(np.inner(F_diff, (normalizer * F_diff)) / np.inner(u_diff, (normalizer_recip * u_diff)))
-            # print(f"!!! L_k: {L_k}")
-            if L_k == 0:
-                step_3 = 100000
-            else:
-                step_3 = (phi_3 ** 2) / (a_ * L_k**2)  
-                # print(f"!!! step_3: {step_3}")
-            
-            step = min(step_1, step_2, step_3)
-            # print(f" !!! Stepsize: {step}")
-            return step, L_k , L_hat_k
+        # Stepsize selection
+        step = min(step_1, step_2, step_3)
+        # print(f" !!! Stepsize: {step}")
+        return step, L_k , L_hat_k
+    ###
 
-        ## line-search for the first step
-        a_0 = 10 * phi_1
-        while True:
-            F_store = np.copy(F_0)
-            a_0 = a_0 / 2
+
+    #line-search for the first step
+    alpha = 2**0.5
+    i = -1
+    # First Loop
+    while True:
+        i += 1
+        F_store = np.copy(F_0)
+        a_0 = alpha**(-i)
+
+        u_1 = problem.g_func.prox_opr(u_0 - a_0 * normalizers * F_0, a_0 * normalizers[:d], d)
+
+        for block in blocks:
+            F_tilde_1[block] = F_store[block]
+            F_store = problem.operator_func.func_map_block_update(F_store, u_1[block], u_0[block], block)
+        
+        F_1 = np.copy(F_store)
+        norm_F = np.linalg.norm((F_1 - F_0))
+        norm_F_tilde = np.linalg.norm((F_1 - F_tilde_1))
+        norm_u = np.linalg.norm((u_1 - u_0))
+        if (a_0 * norm_F_tilde <= C_hat * norm_u) and (a_0 * norm_F <= C * norm_u):
+            break
+    # Second Loop
+    while True:
+        if (a_0 * norm_F_tilde >= C_hat / alpha * norm_u) or (a_0 * norm_F >= C / alpha * norm_u):
+            break
+        else:
+            a_0 = a_0 * alpha
             u_1 = problem.g_func.prox_opr(u_0 - a_0 * normalizers * F_0, a_0 * normalizers[:d], d)
 
             for block in blocks:
@@ -160,217 +193,75 @@ def aduca(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters, u_0=N
             norm_F_tilde = np.linalg.norm((F_1 - F_tilde_1))
             norm_u = np.linalg.norm((u_1 - u_0))
 
-            # print(f"phi_2: {phi_2}")
-            # print(f"a_0: {a_0}")
-            if (a_0 * norm_F <= phi_2 * norm_u) and (a_0 * norm_F_tilde <= phi_2 * norm_u):
-                break
+    a_ = a_0
+    a = a_0
+    A = 0
 
-        a_ = a_0
-        a = a_0
-        A = 0
+    u = np.copy(u_1)
+    u_ = np.copy(u_0)
+    v_ = np.copy(u_)
+    u_hat = A * u_
 
-        u = np.copy(u_1)
-        u_ = np.copy(u_0)
-        v_ = np.copy(u_)
-        u_hat = A * u_
+    F = np.copy(F_1)
+    F_ = np.copy(F_0)
+    F_tilde = np.copy(F_tilde_1)
+    F_tilde_ = np.copy(F_tilde_0)
+    F_bar = np.zeros(problem.d)
 
-        F = np.copy(F_1)
-        F_ = np.copy(F_0)
-        F_tilde = np.copy(F_tilde_1)
-        F_tilde_ = np.copy(F_tilde_0)
-        F_bar = np.zeros(problem.d)
+    while not exit_flag:
+        # Step 6
+        step, L, L_hat = aduca_stepsize(normalizers, normalizers_recip, u, u_, a, a_, F, F_, F_tilde)
+        a_ = a
+        a = step
+        A += a
 
-        while not exit_flag:
-            # Step 6
-            step, L, L_hat = aduca_stepsize(normalizers, normalizers_recip, u, u_, a, a_, F, F_, F_tilde)
-            a_ = a
-            a = step
-            A += a
-
-            for index, block in enumerate(blocks, start=0):
-                # Step 8
-                F_bar[block] = F_tilde[block] + (a_ / a) * (F_[block] - F_tilde_[block])
-                
-                # Step 9
-                v[block] = (1-beta) * u[block] + beta * v_[block]
-
-                # Step 10
-                u_[block] = u[block]
-                if block.stop <= d:
-                    u[block] = problem.g_func.prox_opr_block(block ,v[block] - a * normalizers_1[index] * F_bar[block], a * normalizers_1[index])
-                    # u[block] = problem.g_func.prox_opr_block(block ,v[block] -  a * F_bar[block], a)
-                else:
-                    u[block] = problem.g_func.prox_opr_block(block ,v[block] - a * normalizers_2[index-m_1] * F_bar[block], a)
-                    # u[block] = problem.g_func.prox_opr_block(block ,v[block] - a * F_bar[block], a)
-
-                # Step 11
-                F_tilde_[block] = F_tilde[block]
-                F_tilde[block] = F_store[block]
-                F_store = problem.operator_func.func_map_block_update(F_store, u[block], u_[block], block)
-
-            np.copyto(F_, F)
-            F = np.copy(F_store)
-            # print(f"If F equal to F_tilde")
-            np.copyto(v_, v)
-
-            # print(f"!!! (a / A): {(a / A)}")
-            u_hat = ((A - a) * u_hat / A) + (a*u_ / A)
-
-            # Increment iteration counters
-            k += m
+        for index, block in enumerate(blocks, start=0):
+            # Step 8
+            F_bar[block] = F_tilde[block] + (a_ / a) * (F_[block] - F_tilde_[block])
             
-            if k % (m *  exit_criterion.loggingfreq) == 0:
-                # Compute averaged variables
-                # step = aduca_stepsize(u,u_,a,a_,F,F_,F_tilde)
-                # a_ = a
-                # a = step
-                # A += a      
-                # u_hat = ((A - a) * u_hat / A) + (a*u / A)
-                elapsed_time = time.time() - start_time
-                opt_measure = problem.func_value(u)
-                logging.info(f"elapsed_time: {elapsed_time}, iteration: {k}, opt_measure: {opt_measure}")
-                logresult(results, k, elapsed_time, opt_measure, L=L, L_hat=L_hat)
-                exit_flag = CheckExitCondition(exit_criterion, k, elapsed_time, opt_measure)
-                if exit_flag:
-                    break
-                
-        return results, u
+            # Step 9
+            v[block] = (1-beta) * u[block] + beta * v_[block]
+
+            # Step 10
+            u_[block] = u[block]
+            if block.stop <= d:
+                u[block] = problem.g_func.prox_opr_block(block ,v[block] - a * normalizers_1[index] * F_bar[block], a * normalizers_1[index])
+            else:
+                u[block] = problem.g_func.prox_opr_block(block ,v[block] - a * normalizers_2[index-m_1] * F_bar[block], a)
+
+            # Step 11
+            F_tilde_[block] = F_tilde[block]
+            F_tilde[block] = F_store[block]
+            F_store = problem.operator_func.func_map_block_update(F_store, u[block], u_[block], block)
+
+        np.copyto(F_, F)
+        F = np.copy(F_store)
+        np.copyto(v_, v)
+
+        u_hat = ((A - a) * u_hat / A) + (a*u_ / A)
+
+        # Increment iteration counters
+        k += m
+        
+        if k % (m *  exit_criterion.loggingfreq) == 0:
+            # Compute averaged variables
+            # step = aduca_stepsize(u,u_,a,a_,F,F_,F_tilde)
+            # a_ = a
+            # a = step
+            # A += a      
+            # u_hat = ((A - a) * u_hat / A) + (a*u / A)
+            elapsed_time = time.time() - start_time
+            opt_measure = problem.func_value(u)
+            logging.info(f"elapsed_time: {elapsed_time}, iteration: {k}, opt_measure: {opt_measure}")
+            logresult(results, k, elapsed_time, opt_measure, L=L, L_hat=L_hat)
+            exit_flag = CheckExitCondition(exit_criterion, k, elapsed_time, opt_measure)
+            if exit_flag:
+                break
+            
+    return results, u
+
     
-    elif mu > 0:
-        phi_1 = parameters["phi_1"]
-        alpha = min(phi_1, phi_2, phi_3)
-        print(f"!!! alpha: {alpha}")
-        # Stepsize selection function
-        def aduca_stepsize(normalizer, normalizer_recip, u, u_, a, a_, theta, theta_, F, F_, F_tilde):
-            step_1_1 = alpha * a 
-            step_1_3 = phi_3*(1+beta*mu*a)*theta_/theta * a
-            if (1-xi*beta**2*mu*a) > 0:
-                step_1_2 = phi_2 / (1-xi*beta**2*mu*a) * a
-                step_1 = min(step_1_1, step_1_2, step_1_3)
-            else:
-                step_1 = min(step_1_1, step_1_3)
-
-            u_diff = np.copy(u - u_)
-
-            ### we can heuristically scale the step
-            # L_hat_k = np.linalg.norm(F - F_tilde) / (np.linalg.norm(u-u_)) 
-            F_tilde_diff = np.copy(F-F_tilde)
-            L_hat_k = np.sqrt(np.inner(F_tilde_diff, (normalizer * F_tilde_diff)) / np.inner(u_diff, (normalizer_recip * u_diff))) 
-            if L_hat_k == 0:
-                step_2 = 100000
-            else:    
-                step_2 = (phi_4 / L_hat_k) * ((1+beta*mu*a_)*a / a_)**0.5 * (theta_ / theta)**0.5     
-
-            F_diff = np.copy(F-F_)
-            L_k = np.sqrt(np.inner(F_diff, (normalizer * F_diff)) / np.inner(u_diff, (normalizer_recip * u_diff)))
-            # print(f"!!! L_k: {L_k}")
-            if L_k == 0:
-                step_3 = 100000
-            else:
-                step_3 = (phi_5**2 * (1+beta*mu*a_) * (1+beta*mu*a)) / (a_ * L_k**2)  * (theta_ / theta)
-                # print(f"!!! step_3: {step_3}")
-            
-            step = min(step_1, step_2, step_3)
-            # print(f" !!! Stepsize: {step}")
-            if step < 0.000001:
-                step = 0.000001
-            return step, L_k , L_hat_k
-
-        ## line-search for the first step
-        a_0 = 10 * phi_1
-        while True:
-            F_store = np.copy(F_0)
-            a_0 = a_0 / 2
-            u_1 = problem.g_func.prox_opr(u_0 - a_0 * normalizers * F_0, a_0 * normalizers[:d], d)
-
-            for block in blocks:
-                F_tilde_1[block] = F_store[block]
-                F_store = problem.operator_func.func_map_block_update(F_store, u_1[block], u_0[block], block)
-            
-            F_1 = np.copy(F_store)
-            norm_F = np.linalg.norm((F_1 - F_0))
-            norm_F_tilde = np.linalg.norm((F_1 - F_tilde_1))
-            norm_u = np.linalg.norm((u_1 - u_0))
-
-            # print(f"phi_2: {phi_2}")
-            # print(f"a_0: {a_0}")
-            if (a_0 * norm_F <= phi_2 * norm_u) and (a_0 * norm_F_tilde <= phi_2 * norm_u):
-                break
-
-        a_ = a_0
-        a = a_0
-        A = 0
-
-        u = np.copy(u_1)
-        u_ = np.copy(u_0)
-        v_ = np.copy(u_)
-        u_hat = A * u_
-
-        F = np.copy(F_1)
-        F_ = np.copy(F_0)
-        F_tilde = np.copy(F_tilde_1)
-        F_tilde_ = np.copy(F_tilde_0)
-        F_bar = np.zeros(problem.d)
-        theta = 1
-        theta_ = 1
-
-        while not exit_flag:
-            # Step 6
-            theta_ = theta
-            theta = (1+mu*a) / (1+mu*beta*phi_1*a) * theta
-
-            step, L, L_hat = aduca_stepsize(normalizers, normalizers_recip, u, u_, a, a_,theta,theta_, F, F_, F_tilde)
-            a_ = a
-            a = step
-            A += a
-
-            for index, block in enumerate(blocks, start=0):
-                # Step 8
-                F_bar[block] = F_tilde[block] + (theta_*a_ / (theta*a)) * (F_[block] - F_tilde_[block])
                 
-                # Step 9
-                v[block] = (1-beta) * u[block] + beta * v_[block]
 
-                # Step 10
-                u_[block] = u[block]
-                if block.stop <= d:
-                    u[block] = problem.g_func.prox_opr_block(block ,v[block] - a * normalizers_1[index] * F_bar[block], a * normalizers_1[index])
-                    # u[block] = problem.g_func.prox_opr_block(block ,v[block] -  a * F_bar[block], a)
-                else:
-                    u[block] = problem.g_func.prox_opr_block(block ,v[block] - a * normalizers_2[index-m_1] * F_bar[block], a)
-                    # u[block] = problem.g_func.prox_opr_block(block ,v[block] - a * F_bar[block], a)
-
-                # Step 11
-                F_tilde_[block] = F_tilde[block]
-                F_tilde[block] = F_store[block]
-                F_store = problem.operator_func.func_map_block_update(F_store, u[block], u_[block], block)
-
-            np.copyto(F_, F)
-            F = np.copy(F_store)
-            # print(f"If F equal to F_tilde")
-            np.copyto(v_, v)
-
-            # print(f"!!! (a / A): {(a / A)}")
-            u_hat = ((A - a) * u_hat / A) + (a*u_ / A)
-
-            # Increment iteration counters
-            k += m
-            
-            if k % (m *  exit_criterion.loggingfreq) == 0:
-                # Compute averaged variables
-                # step = aduca_stepsize(u,u_,a,a_,F,F_,F_tilde)
-                # a_ = a
-                # a = step
-                # A += a      
-                # u_hat = ((A - a) * u_hat / A) + (a*u / A)
-                elapsed_time = time.time() - start_time
-                opt_measure = problem.func_value(u)
-                logging.info(f"elapsed_time: {elapsed_time}, iteration: {k}, opt_measure: {opt_measure}")
-                logresult(results, k, elapsed_time, opt_measure, L=L, L_hat=L_hat)
-                exit_flag = CheckExitCondition(exit_criterion, k, elapsed_time, opt_measure)
-                if exit_flag:
-                    break
-                
-        return results, u
 
 
