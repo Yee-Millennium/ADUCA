@@ -37,11 +37,11 @@ os.environ["NUMEXPR_NUM_THREADS"] = "1"
 ## (Dimension, Sample size)
 DATASET_INFO = { 
     "a9a": (123, 32561),
-    "gisette_scale": (5000, 6000),
+    "gisette_scale.bz2": (5000, 6000),
     "rcv1_train.binary.bz2": (47236, 20242),
     "w8a": (300, 49749),
     "real-sim":(20958, 72309),
-    "epsilon_normalized.bz2": (2000,100000)
+    "epsilon_normalized.t.bz2": (2000,100000)
 }
 
 def parse_commandline():
@@ -97,7 +97,12 @@ def main():
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
     logging.info(f"timestamp = {timestamp}")
     logging.info("Completed initialization")
-    outputfilename = f"{outputdir}/{dataset}-{lambda1}_{lambda2}-{algorithm}-{args.lipschitz}-output-{timestamp}.json"
+    traj_dir = os.path.join(outputdir, "traj")
+    os.makedirs(traj_dir, exist_ok=True)
+    outputfilename = os.path.join(
+        traj_dir,
+        f"{dataset}-beta-{args.beta}-block-{args.block_size}-{lambda1}_{lambda2}-{algorithm}-{args.lipschitz}-output-{timestamp}.json",
+    )
     logging.info(f"outputfilename = {outputfilename}")
     logging.info("--------------------------------------------------")
 

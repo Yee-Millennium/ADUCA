@@ -97,8 +97,6 @@ def coder(problem: GMVIProblem, exitcriterion: ExitCriterion, parameters, x0=Non
     return results, x
 
 
-
-
 def coder_linesearch(problem: GMVIProblem, exitcriterion: ExitCriterion, parameters, x0=None):
     # Initialize parameters and variables
     d = problem.operator_func.d
@@ -115,8 +113,8 @@ def coder_linesearch(problem: GMVIProblem, exitcriterion: ExitCriterion, paramet
     logging.info(f"m_1 = {m_1}")
     logging.info(f"m_2 = {m_2}")
     logging.info(f"m = {m}")
-    L = 0.01
-    L_ = 0.01
+    L = 1e-07
+    L_ = 1e-07
     a, A = 0, 0
 
     x0 = np.zeros(problem.d) if x0 is None else x0
@@ -183,6 +181,7 @@ def coder_linesearch(problem: GMVIProblem, exitcriterion: ExitCriterion, paramet
             # Step 15
             norm_F_p = np.linalg.norm(temp_F_store - temp_p)
             norm_x = np.linalg.norm(temp_x - x_prev)
+            iteration += m
             if norm_F_p <= L * norm_x:
                 x = np.copy(temp_x)
                 p = np.copy(temp_p)
@@ -191,7 +190,6 @@ def coder_linesearch(problem: GMVIProblem, exitcriterion: ExitCriterion, paramet
                 break
 
         x_tilde_sum += a * x
-        iteration += m
 
         # Logging and exit condition
         if iteration % (m * exitcriterion.loggingfreq) == 0:

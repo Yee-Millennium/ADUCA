@@ -26,7 +26,17 @@ def libsvm_parser(path, n, d):
 
     # Auto-handle compressed inputs and tolerate non-UTF8 bytes.
     with _open_libsvm(path) as f:
-        data_str = f.readlines()
+        try:
+            data_str = f.readlines()
+        except EOFError:
+            # Handle truncated compressed files gracefully; keep what we could read.
+            f.seek(0)
+            data_str = []
+            try:
+                for line in f:
+                    data_str.append(line)
+            except EOFError:
+                pass
 
     for i in range(min(n, len(data_str))):
         parts = data_str[i].strip().split()

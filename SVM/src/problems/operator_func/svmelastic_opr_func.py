@@ -47,7 +47,7 @@ class SVMElasticOprFunc:
             F[self.d:] += -self.b * (self.A[:, j] * (uslice - uslice_)) / self.n
         return F
     
-    def func_map_block_update(self, F, uslice, uslice_, block:range):
+    def func_map_block_update(self, F, uslice, uslice_, block: slice):
         # only update alpha
         if block.start >= self.d:
             F[:self.d] += (self.A_sparse[block.start-self.d:block.stop-self.d].T.dot((self.b[block.start-self.d:block.stop-self.d]*(uslice - uslice_)))) / self.n
