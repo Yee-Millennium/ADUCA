@@ -99,7 +99,7 @@ def coder(problem: GMVIProblem, exitcriterion: ExitCriterion, parameters, x0=Non
 def coder_linesearch(problem: GMVIProblem, exitcriterion: ExitCriterion, parameters, x0=None):
     # Initialize parameters and variables
     n = problem.operator_func.n
-    L = 0.005
+    L = 1e-7
     block_size = parameters['block_size']
     blocks = construct_block_range(begin=0, end=n, block_size=block_size)
     m = len(blocks)

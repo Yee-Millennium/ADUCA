@@ -10,32 +10,43 @@ class NASHOprFunc:
         self.beta = beta
         self.c = c
         self.L = L
+        # Prevent zero/negative totals from hitting invalid power operations
+        self._min_total_quantity = 1e-12
+
+    def _clip_total_quantity(self, Q):
+        return max(Q, self._min_total_quantity)
 
     def f(self, q):
+        q = np.maximum(q, 0)
         t = 1/self.beta
         res = self.c * q + 1/(1+t)*(self.L**t * q**(1+t))
         return res
     
     def f_block(self, q, block:range):
+        q_block = np.maximum(q[block], 0)
         t = 1./self.beta[block]
-        res = self.c[block] * q[block] + 1./(1.+t[block])*(self.L[block]**t * q[block]**(1+t))
+        res = self.c[block] * q_block + 1./(1.+t[block])*(self.L[block]**t * q_block**(1+t))
         return res
 
     def df(self, q):
+        q = np.maximum(q, 0)
         t = 1./self.beta
         res = self.c + (self.L* q)**t
         return res
     
     def df_block(self, q_block, block:range):
+        q_block = np.maximum(q_block, 0)
         t = 1./self.beta[block]
         res = self.c[block] + (self.L[block]* q_block)**t
         return res
     
     def p(self, Q):
+        Q = self._clip_total_quantity(Q)
         return (5000**(1/self.gamma)) * (Q**(-1/self.gamma))
         
     
     def dp(self, Q):
+        Q = self._clip_total_quantity(Q)
         res = -1./self.gamma * (5000**(1./self.gamma)) * (Q**(-1/self.gamma - 1))
         return res
     

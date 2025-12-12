@@ -11,7 +11,6 @@ import sys
 import json
 import os
 
-from SVM.src.algorithms import prcm
 from src.algorithms.utils.exitcriterion import ExitCriterion, CheckExitCondition
 from src.problems.GMVI_func import GMVIProblem
 from src.problems.nash_opr_func import NASHOprFunc
@@ -20,7 +19,7 @@ from src.algorithms.utils.results import Results, logresult
 from src.algorithms.coder import coder, coder_linesearch
 from src.algorithms.pccm import pccm
 from src.algorithms.gr import gr
-from src.algorithms.aduca import aduca_restart_scale, aduca_scale
+from src.algorithms.aduca import aduca
 
 import pickle
 
@@ -36,7 +35,7 @@ def parse_commandline():
     parser.add_argument('--optval', type=float, default=0.0, help='Known optimal value')
     parser.add_argument('--loggingfreq', type=int, default=100, help='Logging frequency')
     parser.add_argument('--scenario', required=True, help='Choice of dataset')
-    parser.add_argument('--lossfn', default='SVM', help='Choice of loss function')
+    parser.add_argument('--lossfn', default='Nash', help='Choice of loss function')
     parser.add_argument('--algo', required=True, help='Algorithm to run')
     parser.add_argument('--lipschitz', required=True, type=float, help='Lipschitz constant')
     parser.add_argument('--mu', type=float, default=0.0, help='Mu')
@@ -125,8 +124,8 @@ def main():
         beta = np.random.uniform(0.3, 4, n)
         L = np.random.uniform(0.5,20,n)
 
-    F = NASHGFunc(n, gamma, beta, c, L)
-    g = NASHOprFunc(n)
+    F = NASHOprFunc(n, gamma, beta, c, L)
+    g = NASHGFunc(n)
     problem = GMVIProblem(F, g)
 
     if algorithm == "CODER":
@@ -134,7 +133,6 @@ def main():
         L = args.lipschitz
         mu = args.mu
         block_size = args.block_size
-        block_size_2 = args.block_size_2
         coder_params = {"L": L, "mu": mu, "block_size": block_size}
         output, output_x = coder(problem, exitcriterion, coder_params)
 
@@ -142,7 +140,6 @@ def main():
         logging.info("Running CODER_linesearch...")
         mu = args.mu
         block_size = args.block_size
-        block_size_2 = args.block_size_2
         coder_params = {"mu": mu, "block_size": block_size}
         output, output_x = coder_linesearch(problem, exitcriterion, coder_params)
 
@@ -151,42 +148,30 @@ def main():
         L = args.lipschitz
         mu = args.mu
         block_size = args.block_size
-        block_size_2 = args.block_size_2
         pccm_params = {"L": L, "mu": mu, "block_size": block_size}
         output, output_x = pccm(problem, exitcriterion, pccm_params)
-
-    elif algorithm == "PRCM":
-        logging.info("Running PRCM...")
-        L = args.lipschitz
-        mu = args.mu
-        block_size = args.block_size
-        block_size_2 = args.block_size_2
-        prcm_params = {"L": L, "mu": mu, "block_size": block_size, "block_size_2": block_size_2}
-        output, output_x = prcm(problem, exitcriterion, prcm_params)
 
     elif algorithm == "GR":
         beta = args.beta
         block_size = args.block_size
-        block_size_2 = args.block_size_2
         logging.info("Running Golden Ratio...")
-        param = {"beta": beta, "block_size": block_size, "block_size_2": block_size_2}
+        param = {"beta": beta, "block_size": block_size}
         output, output_x = gr(problem, exitcriterion, param)
 
     elif algorithm == "ADUCA":
         beta = args.beta
-        xi = args.xi
+        gamma = args.gamma
+        rho = args.rho
         mu = args.mu
-        phi_1= args.phi_1
         block_size = args.block_size
-        block_size_2 = args.block_size_2
         logging.info("Running ADUCA...")
-        param = {"beta": beta, "gamma": args.gamma, "rho": args.rho, "mu": mu, "block_size": block_size, "block_size_2": block_size_2}
+        param = {"beta": beta, "gamma": gamma, "rho": rho, "mu": mu, "block_size": block_size}
         output, output_x = aduca(problem, exitcriterion, param)
 
     else:
         print("Wrong algorithm name supplied")
     
-    with open(outputfilename, 'w') as outfile:
+    with open(outputdir, 'w') as outfile:
         json.dump({"args": vars(args), 
                 "output_x": output_x.tolist(),
                 "iterations": output.iterations, 
@@ -195,7 +180,7 @@ def main():
                 "L": output.L,
                 "L_hat": output.L_hat}, 
                 outfile)
-        logging.info(f"output saved to {outputfilename}")
+        logging.info(f"output saved to {outputdir}")
 
 if __name__ == "__main__":
     main()

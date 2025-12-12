@@ -50,7 +50,7 @@ def gr(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters, x_0=None
         step_2 = 1 / ((4 * beta**2 * a_) * L_gr**2 )
 
         step = min(step_1, step_2)
-        # print(f"!!! step: {step}")
+        # logging.info(f"GR Stepsize: {step}")
         return step, L_gr
 
 
