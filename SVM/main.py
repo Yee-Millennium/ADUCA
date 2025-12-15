@@ -82,28 +82,24 @@ dataset_params = {
     },
 }
 
-# Per-algorithm overrides (edit as needed)
-algorithm_params = {
-    'CODER': {
-            'lipschitz': 0.000004,
-    },
-    'CODER_linesearch': {
-            'lipschitz': 0.000004,
-    },
-    'PCCM': {
-            'lipschitz': 0.003,
-    },
-    'GR': {
-            'beta': 0.7
-    },
-}
-
 # Per-algorithm parameter sets (each dict is one full set of overrides for a run)
 algorithm_param_sets = {
+    'CODER': [
+        {'lipschitz': 0.000004},
+    ],
+    'CODER_linesearch': [
+        {'lipschitz': 0.000004},
+    ],
+    'PCCM': [
+        {'lipschitz': 0.003},
+    ],
+    'GR': [
+        {'beta': 0.7},
+    ],
     'ADUCA': [
         {'beta': 0.7, 'gamma': 0.05, 'rho': 1.3},
         {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2},
-        {'beta': 0.85, 'gamma': 0.3, 'rho': 1.1},
+        # {'beta': 0.85, 'gamma': 0.3, 'rho': 1.1},
         {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1},
     ],
 }
@@ -114,8 +110,11 @@ for ds in datasets:
     for algo in algorithms:
         param_variants = algorithm_param_sets.get(algo)
         if param_variants:
-            for idx, variant in enumerate(param_variants, start=1):
-                tasks.append((ds, algo, idx, variant))
+            if len(param_variants) == 1:
+                tasks.append((ds, algo, None, param_variants[0]))
+            else:
+                for idx, variant in enumerate(param_variants, start=1):
+                    tasks.append((ds, algo, idx, variant))
         else:
             tasks.append((ds, algo, None, None))
 
@@ -125,7 +124,6 @@ max_workers = len(tasks)*len(algorithms)*5  # tweak concurrency as needed
 def run_task(ds: str, algo: str, variant_idx=None, variant_overrides=None):
     params = base_params.copy()
     params.update(dataset_params.get(ds, {}))
-    params.update(algorithm_params.get(algo, {}))
     if variant_overrides:
         params.update(variant_overrides)
     cmd = ['python', 'run_algos.py', '--algo', algo, '--dataset', ds]
