@@ -239,7 +239,7 @@ def pccm_normalized(problem: GMVIProblem, exitcriterion: ExitCriterion, paramete
             p[y_slice] = F_store[y_slice]
             q[y_slice] = p[y_slice]
             z[y_slice] = z_prev[y_slice] + a * norm_y * q[y_slice]
-            x[y_slice] = problem.g_func.prox_opr_block(y_slice, x0[y_slice] - z[y_slice], A)
+            x[y_slice] = problem.g_func.prox_opr_block(y_slice, x0[y_slice] - z[y_slice], A * norm_y)
             F_store = problem.operator_func.func_map_block_update(
                 F_store, x[y_slice], x_prev[y_slice], y_slice
             )
@@ -257,7 +257,7 @@ def pccm_normalized(problem: GMVIProblem, exitcriterion: ExitCriterion, paramete
                 else:
                     norm_vec = normalizers_2[idx - m_1]
                     z[block] = z_prev[block] + a * norm_vec * q[block]
-                    x[block] = problem.g_func.prox_opr_block(block, x0[block] - z[block], A)
+                    x[block] = problem.g_func.prox_opr_block(block, x0[block] - z[block], A * norm_vec)
 
                 F_store = problem.operator_func.func_map_block_update(F_store, x[block], x_prev[block], block)
 

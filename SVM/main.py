@@ -8,12 +8,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Datasets to run (files must exist in ./data)
 datasets = [
-    'a9a',
+    # 'a9a',
     'gisette_scale.bz2',
-    'w8a',
-    'real-sim',
+    # 'w8a',
+    # 'real-sim',
     'epsilon_normalized.t.bz2',
-    'rcv1_train.binary.bz2',
+    # 'rcv1_train.binary.bz2',
 ]
 
 DIST_ALGO_NAME = 'ADUCA_TORCH_DIST'
@@ -27,7 +27,7 @@ algorithms = [
     # 'PCCM',
     # 'GR',
     # 'GR_normalized',
-    # # 'ADUCA',
+    # 'ADUCA',
     DIST_ALGO_NAME,
 ]
 
@@ -46,7 +46,7 @@ output_run_dir.mkdir(parents=True, exist_ok=True)
 # Base parameters shared by all runs (overridable per dataset)
 base_params = {
     'outputdir': str(output_run_dir),
-    'maxtime': 500_000,
+    'maxtime': 2_500,
     'targetaccuracy': 1e-12,
     'lambda1': 1e-4,
     'lambda2': 1e-4,
@@ -61,61 +61,43 @@ dataset_params = {
     'a9a': {
         'maxiter': 3_000_000, 
         'lipschitz': 
-        0.02, 
-        # 0.0002, # CODER
+        # 0.014,
+        0.0006, # preconditioned
     },
     'gisette_scale.bz2': {
-        'maxiter': 1_000_000, 
+        'maxiter': 50_000_000, 
         'lipschitz': 
-        # 0.89, 
-        0.56, # CODER
+        0.75,
+        # 0.01, # preconditioned
     },
     'w8a': {
         'maxiter': 3_000_000, 
         'lipschitz': 
-        0.05, 
-        # 0.00005 # CODER
+        # 0.007, 
+        0.0004, # preconditioned
     },
     'real-sim': {
         'maxiter': 1_000_000, 
         'lipschitz': 
-        0.004, 
-        # 0.0000002 # CODER
+        # 0.0004, 
+        0.0002, # preconditioned
     },
     'epsilon_normalized.t.bz2': {
-        'maxiter': 1_000_000, 
+        'maxiter': 200_000_000, 
         'lipschitz': 
-        0.003, 
-        # 0.000004 # CODER
+        0.002,
+        # 0.0007, # preconditioned
     },
     'rcv1_train.binary.bz2': {
-        'maxiter': 3_000_000, 
+        'maxiter': 50_000_000, 
         'lipschitz':
-        0.007, 
-        # 0.000001 # CODER
+        # 0.001,
+        0.0006, # preconditioned
     },
 }
 
 # Per-algorithm parameter sets (each dict is one full set of overrides for a run)
 algorithm_param_sets = {
-    # 'CODER': [
-    #     {'lipschitz': 0.000004},
-    # ],
-    # 'CODER_normalized': [
-    #     {'lipschitz': 0.000004},
-    # ],
-    # 'CODER_linesearch': [
-    #     {'lipschitz': 0.000004},
-    # ],
-    # 'CODER_linesearch_normalized': [
-    #     {'lipschitz': 0.000004},
-    # ],
-    # 'PCCM': [
-    #     {'lipschitz': 0.003},
-    # ],
-    # 'PCCM_normalized': [
-    #     {'lipschitz': 0.003},
-    # ],
     'GR': [
         {'beta': 0.7},
     ],

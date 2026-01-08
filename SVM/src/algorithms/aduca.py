@@ -75,38 +75,6 @@ def aduca(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters, u_0=N
                 normalizer[i-block.start] = 1
         normalizers_2.append(normalizer)
 
-    # # Compute Lipschitz constant estimates without GPU SVD (rcv1 is too wide for cusolver)
-    # def power_iteration_lipschitz(A_mat, b_vec, num_iter=8):
-    #     rng = np.random.default_rng(seed=0)
-    #     v = rng.standard_normal(A_mat.shape[1])
-    #     v_norm = np.linalg.norm(v)
-    #     if v_norm == 0 or not np.isfinite(v_norm):
-    #         return 0.0
-    #     v /= v_norm
-
-    #     for _ in range(num_iter):
-    #         w = (b_vec * (A_mat @ v)) / n
-    #         if not np.all(np.isfinite(w)):
-    #             return 0.0
-    #         v = (A_mat.T @ (b_vec * w)) / n
-    #         v_norm = np.linalg.norm(v)
-    #         if v_norm == 0 or not np.isfinite(v_norm):
-    #             return 0.0
-    #         v /= v_norm
-
-    #     w = (b_vec * (A_mat @ v)) / n
-    #     return float(np.linalg.norm(w))
-
-    # try:
-    #     sigma_max = power_iteration_lipschitz(A_matrix, b, num_iter=6)
-    # except Exception as exc:
-    #     logging.warning(f"Power iteration for Lipschitz estimate failed ({exc}); falling back to row-norm bound.")
-    #     sigma_max = max_norm / np.sqrt(n)
-    # norm_Q = sigma_max ** 2
-
-    # logging.info(f"Estimated L: {max_norm / np.sqrt(n)}")
-    # logging.info(f"Estimated L_hat: {norm_Q}")
-
     normalizers = normalizers_1 + normalizers_2
     normalizers = np.concatenate(normalizers, axis=0)
     normalizers_recip = np.where(normalizers != 0, 1 / normalizers, 0)

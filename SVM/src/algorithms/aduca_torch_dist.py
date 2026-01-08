@@ -815,12 +815,9 @@ def _aduca_numpy_reference(problem: GMVIProblem, exit_criterion: ExitCriterion, 
             v[block] = (1 - beta) * u[block] + beta * v_[block]
             u_[block] = u[block]
             if block.stop <= d:
-                u[block] = problem.g_func.prox_opr_block(block, v[block] - a * normalizers_1[index] * F_bar[block],
-                                                         a * normalizers_1[index])
+                u[block] = problem.g_func.prox_opr_block(block, v[block] - a * normalizers_1[index] * F_bar[block], a * normalizers_1[index])
             else:
-                u[block] = problem.g_func.prox_opr_block(block,
-                                                         v[block] - a * normalizers_2[index - m_1] * F_bar[block], a)
-
+                u[block] = problem.g_func.prox_opr_block(block, v[block] - a * normalizers_2[index - m_1] * F_bar[block], a)
             F_tilde_[block] = F_tilde[block]
             F_tilde[block] = F_store[block]
             F_store = problem.operator_func.func_map_block_update(F_store, u[block], u_[block], block)
