@@ -8,8 +8,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Datasets to run (files must exist in ./data)
 datasets = [
-    'a9a',
-    'gisette_scale.bz2',
+    # 'a9a',
+    # 'gisette_scale.bz2',
     # 'w8a',
     # 'real-sim',
     'epsilon_normalized.t.bz2',
@@ -56,19 +56,19 @@ base_params = {
     'mu': 1e-4,
     'block_size': 64,
     'block_size_2': 512,
-    'loggingfreq': 10,
+    'loggingfreq': 20,
 }
 
 # Per-dataset overrides (edit as needed)
 dataset_params = {
     'a9a': {
-        'maxiter': 5_000_000, 
+        'maxiter': 3_000_000, 
         'lipschitz': 
         # 0.014,
         0.0006, # preconditioned
     },
     'gisette_scale.bz2': {
-        'maxiter': 5_000_000, 
+        'maxiter': 1_500_000, 
         'lipschitz': 
         0.75,
         # 0.01, # preconditioned
@@ -86,7 +86,7 @@ dataset_params = {
         0.0002, # preconditioned
     },
     'epsilon_normalized.t.bz2': {
-        'maxiter': 5_000_000, 
+        'maxiter': 2_000_000, 
         'lipschitz': 
         0.002,
         # 0.0007, # preconditioned
@@ -115,13 +115,31 @@ algorithm_param_sets = {
     ],
     DIST_ALGO_NAME: [
         # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.3, 'dist_backend': 'nccl'},
-        {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 0,},
-        {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-1,},
-        {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-2,},
+        # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 0,},
+        # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-1,},
+        # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-2,},
+        # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-3,},
+        # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-4,},
+        # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-5,},
+        # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.3, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 0,},
+        # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.3, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-1,},
+        # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.3, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-2,},
+        # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.3, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-3,},
+        # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.3, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-4,},
+        # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.3, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-5,},
+        # {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 0,},
+        # {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-1,},
+        # {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-2,},
         {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-3,},
-        {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-4,},
-        {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-5,},
+        # {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-4},
+        # {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-5,},
         # {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl'},
+        {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 0,},
+        # {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-1,},
+        # {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-2,},
+        # {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-3,},
+        # {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-4,},
+        # {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-5,},
     ],
 }
 

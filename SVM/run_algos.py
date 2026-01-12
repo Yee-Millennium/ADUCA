@@ -70,7 +70,7 @@ def parse_commandline():
     parser.add_argument('--block_size', type = int, default=1, help='block_size parameter >= 1, <= n')
     parser.add_argument('--block_size_2', type = int, default=float('inf'), help='block_size parameter >= 1, <= n')
 
-    return parser.parse_args()
+    return parser.parse_args() 
 
 def main():
     # Run setup
@@ -105,7 +105,7 @@ def main():
     logging.info("Completed initialization")
     outputfilename = os.path.join(
         outputdir,
-        f"{dataset}-beta-{args.beta}-{algorithm}-blocksize-{args.block_size}-{args.block_size_2}-time-{timestamp}.json",
+        f"{dataset}-beta-{args.beta}-mu-{args.mu}-{algorithm}-blocksize-{args.block_size}-{args.block_size_2}-time-{timestamp}.json",
     )
     logging.info(f"outputfilename = {outputfilename}")
     logging.info("--------------------------------------------------")

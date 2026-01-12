@@ -20,10 +20,10 @@ from src.problems.g_func.svmelastic_g_func import SVMElasticGFunc
 # Configure logging (rank filtering happens inside ADUCA as well)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Simulating BLAS.set_num_threads(1)
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
+# # Simulating BLAS.set_num_threads(1)
+# os.environ["OMP_NUM_THREADS"] = "1"
+# os.environ["MKL_NUM_THREADS"] = "1"
+# os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
 ## (Dimension, Sample size)
 DATASET_INFO = {
@@ -91,7 +91,8 @@ def main():
     if 'traj' not in traj_dir.parts:
         traj_dir = traj_dir / "traj"
     traj_dir.mkdir(parents=True, exist_ok=True)
-    outputfilename = traj_dir / f"{dataset}-beta-{args.beta}-ADUCA-torchdist-blocksize-{args.block_size}-{args.block_size_2}-time-{timestamp}.json"
+    outputfilename = traj_dir / f"{dataset}-beta-{args.beta}-rho-{args.rho}-mu-{args.mu}-ADUCA-torchdist-blocksize-{args.block_size}-{args.block_size_2}-time-{timestamp}.json"
+    logging.info(f"mu: {args.mu}")
     if rank == 0:
         logging.info(f"outputfilename = {outputfilename}")
         logging.info("--------------------------------------------------")

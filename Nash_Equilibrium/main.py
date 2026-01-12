@@ -18,7 +18,7 @@ algorithms = [
     # "CODER_normalized",
     # "CODER_linesearch",
     # "CODER_linesearch_normalized",
-    # "GR",
+    "GR",
     # "GR_normalized",
     # "ADUCA",
     DIST_ALGO_NAME,
@@ -30,12 +30,12 @@ ADUCA_ALGOS = {"ADUCA", DIST_ALGO_NAME}
 nproc_per_node = 1
 dist_backend = "nccl"
 dtype = "float64"
-reduce_dtype = None  # "float32" or "float64"
-sync_step = False
+reduce_dtype = "float64"  # "float32" or "float64"
+sync_step = True
 strong_convexity = False
 
 # GPU visibility (set to None to use the existing environment)
-cuda_visible_devices = "0,2,3,4,5,6,7"
+cuda_visible_devices = "7"
 
 # Concurrency control (None -> auto)
 max_workers = None
@@ -54,14 +54,14 @@ output_run_dir.mkdir(parents=True, exist_ok=True)
 
 # Base parameters (mirror those used in existing trajectory files)
 base_params = {
-    # "maxiter": 10_000_000_000,
-    "maxiter": 1_000_000,
+    # "maxiter": 1_000_000_000,
+    "maxiter": 500_000,
     "maxtime": 500_000,
     "targetaccuracy": 0,
     "optval": 0.0,
     "loggingfreq": 20,
     "mu": 0.0,
-    "block_size": 1000,
+    "block_size": 50_000,
 }
 
 # Per-scenario overrides; add/adjust values as needed.
@@ -89,14 +89,18 @@ scenario_params = {
 # Parameter sweeps for each algorithm (overrides applied on top of base + scenario settings)
 aduca_param_sets = [
     # {"beta": 0.7, "gamma": 0.1, "rho": 1.3},
-    {"beta": 0.8, "gamma": 0.2, "rho": 1.2},
+    {"beta": 0.8, "gamma": 0.2, "rho": 1.2, "q_sync_every": 1, 
+    #  "maxiter": 10_000_000
+    },
     # {"beta": 0.9, "gamma": 0.3, "rho": 1.1},
     # {"beta": 0.95, "gamma": 0.43, "rho": 1.05},
 ]
 
 algorithm_param_sets = {
     "GR": [
-        {"beta": 0.7},
+        {"beta": 0.7, 
+        #  "maxiter": 1_000_000
+         },
     ],
     "ADUCA": aduca_param_sets,
     DIST_ALGO_NAME: aduca_param_sets,
