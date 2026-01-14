@@ -176,7 +176,7 @@ def main() -> None:
     algorithm = args.algo
 
     scenario = int(args.scenario)
-    n = 1_000_000
+    n = 1_000
     # n=1000
     logging.info(f"scenario: {scenario}, n: {n}")
     logging.info("--------------------------------------------------")

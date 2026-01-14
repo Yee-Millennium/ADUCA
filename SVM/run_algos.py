@@ -23,6 +23,7 @@ from src.algorithms.pccm import pccm, pccm_normalized
 from src.algorithms.prcm import prcm
 from src.algorithms.rapd import rapd
 from src.algorithms.gr import gr, gr_normalized
+from src.algorithms.gr_torch import gr_torch, gr_torch_normalized
 from src.algorithms.aduca import aduca
 from src.problems.utils.data_parsers import libsvm_parser
 from src.problems.utils.data import Data
@@ -46,7 +47,8 @@ DATASET_INFO = {
     "rcv1_train.binary.bz2": (47236, 20242),
     "w8a": (300, 49749),
     "real-sim":(20958, 72309),
-    "epsilon_normalized.t.bz2": (2000,100000)
+    "epsilon_normalized.t.bz2": (2000,100000),
+    "news20.binary.bz2": (1355191, 19996),
 }
 
 def parse_commandline():
@@ -69,6 +71,10 @@ def parse_commandline():
     parser.add_argument('--rho', type = float, default=0.0, help='aduca constant parameter')
     parser.add_argument('--block_size', type = int, default=1, help='block_size parameter >= 1, <= n')
     parser.add_argument('--block_size_2', type = int, default=float('inf'), help='block_size parameter >= 1, <= n')
+    parser.add_argument('--device', default=None, help='Torch device (e.g. cuda:0)')
+    parser.add_argument('--dtype', default='float32', choices=['float32', 'float64'], help='Torch dtype')
+    parser.add_argument('--use_dense', default=None, help='Force dense GEMV for torch (true/false)')
+    parser.add_argument('--dense_threshold', type=float, default=0.25, help='Auto-dense switch threshold')
 
     return parser.parse_args() 
 
@@ -192,6 +198,38 @@ def main():
         logging.info("Running Golden Ratio (normalized)...")
         param = {"beta": beta, "block_size": block_size, "block_size_2": block_size_2}
         output, output_x = gr_normalized(problem, exitcriterion, param)
+
+    elif algorithm == "GR_TORCH":
+        beta = args.beta
+        block_size = args.block_size
+        block_size_2 = args.block_size_2
+        logging.info("Running Golden Ratio (torch)...")
+        param = {
+            "beta": beta,
+            "block_size": block_size,
+            "block_size_2": block_size_2,
+            "device": args.device,
+            "dtype": args.dtype,
+            "use_dense": args.use_dense,
+            "dense_threshold": args.dense_threshold,
+        }
+        output, output_x = gr_torch(problem, exitcriterion, param)
+
+    elif algorithm == "GR_TORCH_normalized":
+        beta = args.beta
+        block_size = args.block_size
+        block_size_2 = args.block_size_2
+        logging.info("Running Golden Ratio (torch normalized)...")
+        param = {
+            "beta": beta,
+            "block_size": block_size,
+            "block_size_2": block_size_2,
+            "device": args.device,
+            "dtype": args.dtype,
+            "use_dense": args.use_dense,
+            "dense_threshold": args.dense_threshold,
+        }
+        output, output_x = gr_torch_normalized(problem, exitcriterion, param)
 
     elif algorithm == "ADUCA":
         beta = args.beta

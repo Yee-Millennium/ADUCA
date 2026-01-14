@@ -118,6 +118,8 @@ def _aduca_torch_distributed_svm(problem: GMVIProblem,
     world_size = dist.get_world_size()
     local_rank = int(os.environ.get("LOCAL_RANK", rank))
 
+    logging.info(f"[torch_dist] rank {rank}/{world_size} initialized (local_rank={local_rank})")
+
     use_cuda = torch.cuda.is_available()
     device = torch.device(f"cuda:{local_rank}" if use_cuda else "cpu")
     if device.type == "cuda":
@@ -155,13 +157,18 @@ def _aduca_torch_distributed_svm(problem: GMVIProblem,
         logging.info(f"rho = {rho_0}")
         logging.info(f"C = {C}")
         logging.info(f"C_hat = {C_hat}")
+        logging.info(f"mu: {mu}")
 
-    # Iteration accounting to match the original code (k += m per full block sweep)
+    # Iteration accounting to match the original code (k += m per full b lock sweep)
     block_size = _as_int_blocksize(parameters.get("block_size", 1), default=1)
     block_size_2 = _as_int_blocksize(parameters.get("block_size_2", n), default=n)
     m_1 = (d + block_size - 1) // block_size
     m_2 = (n + block_size_2 - 1) // block_size_2
     m = int(m_1 + m_2)
+
+    if rank == 0:
+        logging.info(f"[torch_dist] block_size = {block_size}, m_1 = {m_1}")
+        logging.info(f"[torch_dist] block_size_2 = {block_size_2}, m_2 = {m_2}")
 
     # ----------------------------
     # Shard data by rows

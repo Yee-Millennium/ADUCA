@@ -33,6 +33,7 @@ DATASET_INFO = {
     "w8a": (300, 49749),
     "real-sim": (20958, 72309),
     "epsilon_normalized.t.bz2": (2000, 100000),
+    "news20.binary.bz2": (1355191, 19996),
 }
 
 def parse_commandline():
@@ -67,6 +68,7 @@ def main():
     # Detect torchrun rank/world-size (if not present, default to single process)
     rank = int(os.environ.get("RANK", "0"))
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
+    logging.info(f"Detected rank {rank} / world_size {world_size}")
 
     # Problem Setup
     dataset = args.dataset
@@ -92,7 +94,6 @@ def main():
         traj_dir = traj_dir / "traj"
     traj_dir.mkdir(parents=True, exist_ok=True)
     outputfilename = traj_dir / f"{dataset}-beta-{args.beta}-rho-{args.rho}-mu-{args.mu}-ADUCA-torchdist-blocksize-{args.block_size}-{args.block_size_2}-time-{timestamp}.json"
-    logging.info(f"mu: {args.mu}")
     if rank == 0:
         logging.info(f"outputfilename = {outputfilename}")
         logging.info("--------------------------------------------------")

@@ -12,14 +12,14 @@ scenarios = [1, 2, 3]
 DIST_ALGO_NAME = "ADUCA_torch_dist"
 
 algorithms = [
-    # "PCCM",
-    # "PCCM_normalized",
-    # "CODER",
-    # "CODER_normalized",
-    # "CODER_linesearch",
-    # "CODER_linesearch_normalized",
+    "PCCM",
+    "PCCM_normalized",
+    "CODER",
+    "CODER_normalized",
+    "CODER_linesearch",
+    "CODER_linesearch_normalized",
     "GR",
-    # "GR_normalized",
+    "GR_normalized",
     # "ADUCA",
     DIST_ALGO_NAME,
 ]
@@ -35,7 +35,7 @@ sync_step = True
 strong_convexity = False
 
 # GPU visibility (set to None to use the existing environment)
-cuda_visible_devices = "7"
+cuda_visible_devices = "0,1,2,3,4,5,6,7"
 
 # Concurrency control (None -> auto)
 max_workers = None
@@ -54,14 +54,14 @@ output_run_dir.mkdir(parents=True, exist_ok=True)
 
 # Base parameters (mirror those used in existing trajectory files)
 base_params = {
-    # "maxiter": 1_000_000_000,
-    "maxiter": 500_000,
+    "maxiter": 3_000_000,
+    # "maxiter": 500_000,
     "maxtime": 500_000,
     "targetaccuracy": 0,
     "optval": 0.0,
     "loggingfreq": 20,
     "mu": 0.0,
-    "block_size": 50_000,
+    "block_size": 50,
 }
 
 # Per-scenario overrides; add/adjust values as needed.
@@ -99,6 +99,11 @@ aduca_param_sets = [
 algorithm_param_sets = {
     "GR": [
         {"beta": 0.7, 
+        #  "maxiter": 1_000_000
+         },
+    ],
+    "GR_normalized": [
+        {"beta": 0.7,
         #  "maxiter": 1_000_000
          },
     ],

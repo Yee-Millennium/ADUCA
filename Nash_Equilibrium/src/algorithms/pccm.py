@@ -7,11 +7,11 @@ from src.algorithms.utils.results import Results, logresult
 from src.algorithms.utils.helper import construct_block_range
 
 
-def _compute_normalizers(problem: GMVIProblem, beta_param: float) -> np.ndarray:
+def _compute_normalizers(problem: GMVIProblem) -> np.ndarray:
     """Normalizer used by ADUCA; reused for the other algorithms."""
     op_L = problem.operator_func.L
     beta_vec = problem.operator_func.beta
-    return np.power(1 / op_L, 1 / beta_vec) / beta_param
+    return np.power(1 / op_L, 1 / beta_vec)
 
 def pccm(problem: GMVIProblem, exitcriterion: ExitCriterion, parameters, x0=None):
     # Initialize parameters and variables
@@ -103,16 +103,13 @@ def pccm_normalized(problem: GMVIProblem, exitcriterion: ExitCriterion, paramete
     # Initialize parameters and variables with ADUCA-style normalizers
     n = problem.operator_func.n
     L = parameters["L"] * 2
-    beta_param = parameters.get("beta")
-    if beta_param is None:
-        raise ValueError("Parameter 'beta' is required for PCCM_normalized.")
 
     block_size = parameters['block_size']
     blocks = construct_block_range(begin=0, end=n, block_size=block_size)
     m = len(blocks)
     logging.info(f"m = {m}")
 
-    normalizers = _compute_normalizers(problem, beta_param)
+    normalizers = _compute_normalizers(problem)
 
     a, A = 0, 0
     x0 = np.ones(n) if x0 is None else x0

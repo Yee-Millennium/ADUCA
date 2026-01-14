@@ -12,11 +12,21 @@ datasets = [
     # 'gisette_scale.bz2',
     # 'w8a',
     # 'real-sim',
-    'epsilon_normalized.t.bz2',
+    # 'epsilon_normalized.t.bz2',
     # 'rcv1_train.binary.bz2',
+    "news20.binary.bz2",
 ]
 
 DIST_ALGO_NAME = 'ADUCA_TORCH_DIST'
+
+# GPU visibility (set to None to use the existing environment)
+cuda_visible_devices = "0,1,2,3,4,5,6,7"
+nproc_per_node = 8  # number of GPUs to use
+
+# Strong convexity toggle for ADUCA_TORCH_DIST
+strong_convexity = False
+
+DIST_BOOL_PARAMS = {'use_dense', 'strong_convexity'}
 
 algorithms = [
     # 'CODER',
@@ -27,12 +37,11 @@ algorithms = [
     # 'PCCM',
     # 'GR',
     # 'GR_normalized',
+    'GR_TORCH',
+    # 'GR_TORCH_normalized',
     # 'ADUCA',
     DIST_ALGO_NAME,
 ]
-
-# Strong convexity toggle for ADUCA_TORCH_DIST
-strong_convexity = True
 
 # Output directories
 output_root = Path('./output')
@@ -54,8 +63,8 @@ base_params = {
     'lambda1': 1e-4,
     'lambda2': 1e-4,
     'mu': 1e-4,
-    'block_size': 64,
-    'block_size_2': 512,
+    'block_size': 16384,
+    'block_size_2': 128,
     'loggingfreq': 20,
 }
 
@@ -68,7 +77,8 @@ dataset_params = {
         0.0006, # preconditioned
     },
     'gisette_scale.bz2': {
-        'maxiter': 1_500_000, 
+        'maxiter': 100_000_000, 
+        'maxtime': 600,
         'lipschitz': 
         0.75,
         # 0.01, # preconditioned
@@ -97,6 +107,11 @@ dataset_params = {
         # 0.001,
         0.0006, # preconditioned
     },
+    "news20.binary.bz2": {
+        'maxiter': 10_000_000,
+        'lipschitz':
+        0.0005,
+    },
 }
 
 # Per-algorithm parameter sets (each dict is one full set of overrides for a run)
@@ -105,6 +120,12 @@ algorithm_param_sets = {
         {'beta': 0.7},
     ],
     'GR_normalized': [
+        {'beta': 0.7},
+    ],
+    'GR_TORCH': [
+        {'beta': 0.7},
+    ],
+    'GR_TORCH_normalized': [
         {'beta': 0.7},
     ],
     'ADUCA': [
@@ -127,14 +148,14 @@ algorithm_param_sets = {
         # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.3, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-3,},
         # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.3, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-4,},
         # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.3, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-5,},
-        # {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 0,},
+        {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 0,},
         # {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-1,},
         # {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-2,},
-        {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-3,},
+        # {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-3,},
         # {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-4},
         # {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-5,},
         # {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl'},
-        {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 0,},
+        # {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 0,},
         # {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-1,},
         # {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-2,},
         # {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-3,},
@@ -165,7 +186,6 @@ DIST_PARAM_ORDER = [
     'dtype',
     'dense_threshold',
 ]
-DIST_BOOL_PARAMS = {'use_dense', 'strong_convexity'}
 
 # Build all (dataset, algo, variant) tasks
 tasks = []
@@ -196,20 +216,24 @@ def run_task(ds: str, algo: str, variant_idx=None, variant_overrides=None):
     if variant_overrides:
         params.update(variant_overrides)
 
-    env = dict(os.environ)
-    env.setdefault("OMP_NUM_THREADS", "1")
-    env.setdefault("MKL_NUM_THREADS", "1")
-    env.setdefault("OPENBLAS_NUM_THREADS", "1")
-    env.setdefault("NUMEXPR_NUM_THREADS", "1")
-    env.setdefault("NCCL_DEBUG", "WARN")
-    env.setdefault("NCCL_IB_DISABLE", "1")
+    # env = dict(os.environ)
+    # env.setdefault("OMP_NUM_THREADS", "1")
+    # env.setdefault("MKL_NUM_THREADS", "1")
+    # env.setdefault("OPENBLAS_NUM_THREADS", "1")
+    # env.setdefault("NUMEXPR_NUM_THREADS", "1")
+    # env.setdefault("NCCL_DEBUG", "WARN")
+    # env.setdefault("NCCL_IB_DISABLE", "1")
 
     if algo == DIST_ALGO_NAME:
         if strong_convexity:
             params['strong_convexity'] = True
         ### Distributed run with --nproc_per_node=j for using j GPUs
         master_port = _find_free_port()
-        cmd = ['torchrun', '--nproc_per_node=8', '--master-port', str(master_port), DIST_SCRIPT, '--dataset', ds]
+        cmd = ['torchrun', 
+               f'--nproc_per_node={nproc_per_node}',
+                '--master-port', str(master_port),
+                DIST_SCRIPT,
+                '--dataset', ds]
         for key in DIST_PARAM_ORDER:
             if key not in params:
                 continue
@@ -232,7 +256,7 @@ def run_task(ds: str, algo: str, variant_idx=None, variant_overrides=None):
 
     with open(log_path, 'w') as logf:
         logf.write('Command: ' + ' '.join(cmd) + '\n\n')
-        result = subprocess.run(cmd, cwd='.', env=env, stdout=logf, stderr=subprocess.STDOUT)
+        result = subprocess.run(cmd, cwd='.', stdout=logf, stderr=subprocess.STDOUT)
     return ds, algo, variant_suffix, result.returncode, log_path
 
 

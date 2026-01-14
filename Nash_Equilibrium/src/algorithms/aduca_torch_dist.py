@@ -301,8 +301,11 @@ def aduca_distributed(
     L_pow = torch.pow(L, inv_beta_op)  # L^{1/beta_i}
 
     # Preconditioner (diagonal): Λ^{-1} corresponds to `normalizer`
-    normalizer = (1.0 / L_pow) / beta_alg  # L^{-1/beta_i} / beta_alg
+    normalizer = (1.0 / L_pow) # L^{-1/beta_i} / beta_alg
     normalizer_recip = 1.0 / normalizer
+
+    # normalizer = torch.ones_like(L_pow)
+    # normalizer_recip = normalizer
 
     # Demand constants
     p_const = float(5000.0 ** (1.0 / gamma_op))

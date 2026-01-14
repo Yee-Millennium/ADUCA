@@ -8,11 +8,11 @@ from src.algorithms.utils.exitcriterion import ExitCriterion, CheckExitCondition
 from src.algorithms.utils.helper import construct_block_range
 
 
-def _compute_normalizers(problem: GMVIProblem, beta_param: float) -> np.ndarray:
+def _compute_normalizers(problem: GMVIProblem) -> np.ndarray:
     """Normalizer used by ADUCA; reused for the other algorithms."""
     op_L = problem.operator_func.L
     beta_vec = problem.operator_func.beta
-    return np.power(1 / op_L, 1 / beta_vec) / beta_param
+    return np.power(1 / op_L, 1 / beta_vec)
 
 
 def gr(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters, x_0=None):
@@ -108,7 +108,8 @@ def gr_normalized(problem: GMVIProblem, exit_criterion: ExitCriterion, parameter
 
     beta = parameters["beta"]
     rho = beta + beta**2
-    normalizers = _compute_normalizers(problem, beta)
+    normalizers = _compute_normalizers(problem)
+    normalizers_recip = 1 / normalizers
 
     if x_0 is None:
         x_0 = np.ones(n)
@@ -132,11 +133,11 @@ def gr_normalized(problem: GMVIProblem, exit_criterion: ExitCriterion, parameter
     def gr_stepsize(a , a_, x, x_, F, F_ ):
         step_1 = rho * a
  
-        F_norm = np.linalg.norm(F - F_)
+        F_norm = np.linalg.norm((F - F_)* normalizers**0.5)
         if F_norm == 0 :
             return step_1, np.inf
         
-        x_norm = np.linalg.norm(x - x_)
+        x_norm = np.linalg.norm((x - x_) * normalizers_recip**0.5)
         L_gr = F_norm / x_norm
 
         step_2 = 1 / ((4 * beta**2 * a_) * L_gr**2 )
