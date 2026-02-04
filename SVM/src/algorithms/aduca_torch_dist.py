@@ -14,11 +14,16 @@ from src.algorithms.utils.results import Results, logresult
 from src.algorithms.utils.helper import construct_block_range
 
 
+# ============================================================
+# Helpers
+# ============================================================
+
 def _find_free_port(default: int = 29500) -> int:
     """Pick a free TCP port for single-process dist runs."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("", 0)) 
+        s.bind(("", 0))
         return s.getsockname()[1] or default
+
 
 def _as_int_blocksize(value, default: int) -> int:
     """
@@ -37,9 +42,7 @@ def _as_int_blocksize(value, default: int) -> int:
 
 
 def _split_range(n: int, world_size: int, rank: int) -> Tuple[int, int]:
-    """
-    Contiguous partition of [0, n) across ranks.
-    """
+    """Contiguous partition of [0, n) across ranks."""
     n = int(n)
     world_size = int(world_size)
     rank = int(rank)
@@ -68,28 +71,41 @@ def _prox_elastic_net_torch(z, tau, lambda1: float, lambda2: float):
     return p2 * torch.sign(z) * torch.clamp(torch.abs(z) - p1, min=0.0)
 
 
+# ============================================================
+# Distributed ADUCA for SVM with incremental (block-local) operator updates
+# ============================================================
+
 def _aduca_torch_distributed_svm(problem: GMVIProblem,
                                 exit_criterion: ExitCriterion,
                                 parameters,
                                 u_0: Optional[np.ndarray] = None):
     """
-    Multi-GPU / multi-process ADUCA implementation for the SVM-ElasticNet saddle-point
-    formulation implemented in SVMElasticOprFunc + SVMElasticGFunc.
+    Multi-GPU / multi-process ADUCA for the SVM-ElasticNet saddle-point formulation.
+
+    Compared to the previous implementation, this version maintains cached sufficient
+    statistics and updates the operator *incrementally per block*:
+
+      - Cache margin_local = b_local ⊙ (A_local x)   (size n_local)
+        => F_y_local = (1 - margin_local) / n
+
+      - Cache g_local = A_local^T (b_local ⊙ y_local) (size d)
+        => F_x_global = (all_reduce_sum(g_local)) / n
+
+    During the cyclic block sweep:
+      - Updating an x-block only touches margin_local via columns of A_local.
+      - Updating a y-block only touches g_local via rows of A_local.
+
+    This matches the "block operator evaluation is local and can be updated incrementally"
+    idea: we avoid re-computing A_local @ x and A_local^T @ (b ⊙ y) from scratch each iteration.
 
     Design:
-    - x (dimension d) is replicated on every rank.
-    - y (dimension n) and rows of A are sharded across ranks.
-    - F_x = (A^T (b ⊙ y))/n is computed via local A_i^T(...) + all_reduce(sum).
-    - F_y = (1 - b ⊙ (A x))/n is computed locally (row-sharded).
-    - This directly exploits the delay structure you pointed out:
-        * For x-blocks, F depends only on y (previous iterate is enough).
-        * For y-blocks, F depends only on x (current iterate is enough).
-      so we update all blocks "Jacobi-style" in parallel (same iterate, same epoch).
+      - x (dimension d) is replicated on every rank.
+      - y (dimension n) and rows of A are sharded across ranks.
 
     Notes:
-    - Launch with torchrun, e.g.:
-        torchrun --nproc_per_node=8 run_algos.py --algo ADUCA ...
-    - Only rank 0 returns populated Results + full u; other ranks return dummy outputs.
+      - Launch with torchrun, e.g.:
+          torchrun --nproc_per_node=8 run_algos.py --algo ADUCA --backend torch_dist ...
+      - Only rank 0 returns populated Results + full u; other ranks return dummy outputs.
     """
     try:
         import torch
@@ -105,6 +121,7 @@ def _aduca_torch_distributed_svm(problem: GMVIProblem,
     if not dist.is_initialized():
         dist_backend = parameters.get("dist_backend", "nccl")
         if dist_backend == "nccl" and not torch.cuda.is_available():
+            # If user requested NCCL but no CUDA, fail fast with a clear message.
             raise RuntimeError("Requested NCCL backend but torch.cuda.is_available() is False.")
         # Provide sane defaults for single-process runs so env:// works without explicit env vars.
         os.environ.setdefault("RANK", "0")
@@ -145,7 +162,7 @@ def _aduca_torch_distributed_svm(problem: GMVIProblem,
     lambda1 = float(getattr(problem.g_func, "lambda1", 0.0))
     lambda2 = float(getattr(problem.g_func, "lambda2", 0.0))
 
-    # Algorithm constants (same as your current aduca.py)
+    # Algorithm constants (same as your original aduca.py)
     rho_0 = min(rho, beta * (1 + beta) * (1 - gamma))
     eta = ((gamma * (1 + beta)) / (1 + beta ** 2)) ** 0.5
     tau_const = (3 * rho_0 ** 2 * (1 + rho * beta) / (2 * (rho * beta) ** 2 + 3 * rho_0 ** 2 * (1 + rho * beta)))
@@ -159,16 +176,12 @@ def _aduca_torch_distributed_svm(problem: GMVIProblem,
         logging.info(f"C_hat = {C_hat}")
         logging.info(f"mu: {mu}")
 
-    # Iteration accounting to match the original code (k += m per full b lock sweep)
-    block_size = _as_int_blocksize(parameters.get("block_size", 1), default=1)
-    block_size_2 = _as_int_blocksize(parameters.get("block_size_2", n), default=n)
+    # Iteration accounting to match the original code (k += m per full block sweep)
+    block_size = _as_int_blocksize(parameters.get("block_size", 1), default=1)          # x-block size
+    block_size_2 = _as_int_blocksize(parameters.get("block_size_2", n), default=n)      # y-block size
     m_1 = (d + block_size - 1) // block_size
     m_2 = (n + block_size_2 - 1) // block_size_2
     m = int(m_1 + m_2)
-
-    if rank == 0:
-        logging.info(f"[torch_dist] block_size = {block_size}, m_1 = {m_1}")
-        logging.info(f"[torch_dist] block_size_2 = {block_size_2}, m_2 = {m_2}")
 
     # ----------------------------
     # Shard data by rows
@@ -215,7 +228,6 @@ def _aduca_torch_distributed_svm(problem: GMVIProblem,
     # Build local A and A^T on device
     def scipy_csr_to_torch_csr(mat, shape, device_, dtype_):
         # mat must be CSR
-        import torch
         mat = mat.tocsr()
         crow = torch.tensor(mat.indptr, device=device_, dtype=torch.int64)
         col = torch.tensor(mat.indices, device=device_, dtype=torch.int64)
@@ -224,18 +236,41 @@ def _aduca_torch_distributed_svm(problem: GMVIProblem,
 
     if use_dense:
         A_local_dense = torch.tensor(A_local_csr.toarray(), device=device, dtype=vec_dtype)
-        A_local_T_dense = None  # use A_local_dense.t()
         A_local = A_local_dense
-        A_local_T = None
+        A_local_T = None  # use A_local_dense.t()
         def matvec_A(x_vec):
             return A_local_dense.matmul(x_vec)
         def matvec_AT(v_vec):
             return A_local_dense.t().matmul(v_vec)
+        # These are unused for dense updates
+        A_indptr = None
+        A_indices = None
+        A_values = None
+        AT_indptr = None
+        AT_indices = None
+        AT_values = None
+        A_row_nnz_t = None
+        AT_row_nnz_t = None
     else:
         # Sparse CSR on device
         A_local = scipy_csr_to_torch_csr(A_local_csr, (n_local, d), device, vec_dtype)
+
+        # For incremental updates we want row-pointer/indices/value arrays
+        A_indptr = A_local_csr.indptr.astype(np.int64, copy=False)
+        A_indices = A_local.col_indices()
+        A_values = A_local.values()
+
+        # Transpose CSR on CPU then transfer to torch CSR
         A_local_T_csr = A_local_csr.transpose().tocsr()  # (d, n_local) CSR on CPU
         A_local_T = scipy_csr_to_torch_csr(A_local_T_csr, (d, n_local), device, vec_dtype)
+
+        AT_indptr = A_local_T_csr.indptr.astype(np.int64, copy=False)
+        AT_indices = A_local_T.col_indices()
+        AT_values = A_local_T.values()
+
+        # Precompute nnz-per-row tensors on device for repeat_interleave
+        A_row_nnz_t = torch.tensor(np.diff(A_indptr), device=device, dtype=torch.int64)
+        AT_row_nnz_t = torch.tensor(np.diff(AT_indptr), device=device, dtype=torch.int64)
 
         def matvec_A(x_vec):
             # (n_local, d) @ (d,) -> (n_local,)
@@ -275,16 +310,13 @@ def _aduca_torch_distributed_svm(problem: GMVIProblem,
     normalizer_x = torch.where(col_norm != 0.0, 1.0 / col_norm, torch.ones_like(col_norm))
     normalizer_recip_x = torch.where(normalizer_x != 0.0, 1.0 / normalizer_x, torch.zeros_like(normalizer_x))
 
-    # mu = mu / torch.min(normalizer_x.min(), normalizer_y.min()).item()
-    # logging.info(f"[torch_dist] Adjusted mu = {mu:.6e}")
-
     if rank == 0:
         logging.info(f"[torch_dist] Initialization time = {time.time() - t0_init:.4f} seconds")
 
     # ----------------------------
-    # Helper: compute operator parts on distributed shards
+    # Helper: compute operator parts from scratch (used only in initialization / line-search)
     # ----------------------------
-    def compute_F_parts(x_vec, y_local_vec):
+    def compute_F_parts_full(x_vec, y_local_vec):
         """
         Returns:
           F_x (d,) replicated (all_reduce)
@@ -295,12 +327,15 @@ def _aduca_torch_distributed_svm(problem: GMVIProblem,
         F_y_local = (1.0 - b_local * Ax_local) / float(n)
 
         # F_x global via all_reduce over local contributions
-        by_local = b_local * y_local_vec
-        g_local = matvec_AT(by_local)  # shape (d,)
-        dist.all_reduce(g_local, op=dist.ReduceOp.SUM)
-        F_x = g_local / float(n)
+        by_local_ = b_local * y_local_vec
+        g_local_ = matvec_AT(by_local_)  # shape (d,)
+        dist.all_reduce(g_local_, op=dist.ReduceOp.SUM)
+        F_x = g_local_ / float(n)
         return F_x, F_y_local
 
+    # ----------------------------
+    # Weighted inner products (global reductions)
+    # ----------------------------
     def compute_weighted_inner_products(u_diff_x, u_diff_y,
                                         F_diff_x, F_diff_y,
                                         Ftilde_diff_x=None, Ftilde_diff_y=None):
@@ -314,6 +349,7 @@ def _aduca_torch_distributed_svm(problem: GMVIProblem,
         # Use float64 for stable reductions
         den_x = torch.sum((normalizer_recip_x * (u_diff_x ** 2)).to(torch.float64))
         den_y = torch.sum((normalizer_recip_y * (u_diff_y ** 2)).to(torch.float64))
+        # x is replicated => divide by world_size so global reduction counts it once
         local_den = den_x / float(world_size) + den_y
         dist.all_reduce(local_den, op=dist.ReduceOp.SUM)
 
@@ -356,7 +392,7 @@ def _aduca_torch_distributed_svm(problem: GMVIProblem,
     vy_prev = y0.clone()
 
     # Initial operator values
-    F_x0, F_y0 = compute_F_parts(x0, y0)
+    F_x0, F_y0 = compute_F_parts_full(x0, y0)
     # tilde^0 = F(u0) in your NumPy code
     tilde_x0 = F_x0.clone()
     tilde_y0 = F_y0.clone()
@@ -392,7 +428,7 @@ def _aduca_torch_distributed_svm(problem: GMVIProblem,
     z_y = y0 - a0 * (normalizer_y * F_y0)
     y1 = torch.clamp(z_y, min=-1.0, max=0.0)
 
-    F_x1, F_y1 = compute_F_parts(x1, y1)
+    F_x1, F_y1 = compute_F_parts_full(x1, y1)
     tilde_x1 = F_x0
     tilde_y1 = F_y1
 
@@ -406,7 +442,7 @@ def _aduca_torch_distributed_svm(problem: GMVIProblem,
 
     L_1 = norm_F / norm_u if norm_u != 0 else float("inf")
     L_hat_1 = norm_Ftilde / norm_u if norm_u != 0 else float("inf")
-    a0 = min(C / L_1 if L_1 else float("inf"), C_hat / L_hat_1 if L_hat_1 else float("inf"))
+    _ = min(C / L_1 if L_1 else float("inf"), C_hat / L_hat_1 if L_hat_1 else float("inf"))
 
     while True:
         a0 = alpha_ls ** (-i_ls)
@@ -418,9 +454,7 @@ def _aduca_torch_distributed_svm(problem: GMVIProblem,
         z_y = y0 - a0 * (normalizer_y * F_y0)
         y1 = torch.clamp(z_y, min=-1.0, max=0.0)
 
-        F_x1, F_y1 = compute_F_parts(x1, y1)
-        tilde_x1 = F_x0
-        tilde_y1 = F_y1
+        F_x1, F_y1 = compute_F_parts_full(x1, y1)
 
         norm_F_sq = global_weighted_F_norm_sq(F_x1 - F_x0, F_y1 - F_y0)
         norm_u_sq = global_weighted_u_norm_sq(x1 - x0, y1 - y0)
@@ -435,8 +469,6 @@ def _aduca_torch_distributed_svm(problem: GMVIProblem,
     x_init, y_init = x1, y1
     F_x_init, F_y_init = F_x1, F_y1
     tilde_x_init, tilde_y_init = tilde_x1, tilde_y1
-
-    a_0 = a0
 
     # Initialize states at k=1 (matching the NumPy code after line-search)
     x = x_init.clone()
@@ -465,24 +497,38 @@ def _aduca_torch_distributed_svm(problem: GMVIProblem,
 
     A_accum = 0.0  # matches "A" accumulator in NumPy code
 
-    # Results (rank 0 only)
-    results = Results() if rank == 0 else None
-    start_time = time.time()
+    # ----------------------------
+    # Initialize incremental caches: margin_local and g_local
+    # ----------------------------
+    # margin_local = b_local * (A_local x) = 1 - n * F_y_local
+    margin_local = (1.0 - float(n) * F_y).clone()
 
-    # Initial objective value logging (iteration = 1, time = 0)
-    # Compute objective in distributed manner (hinge via all_reduce; reg locally)
-    def compute_objective(x_vec):
-        Ax_local = matvec_A(x_vec)
-        hinge_local = torch.clamp(1.0 - b_local * Ax_local, min=0.0).to(torch.float64).sum()
+    # by_local = b_local * y, g_local = A_local^T by_local (local contribution)
+    by_local = b_local * y
+    if use_dense:
+        g_local = A_local_dense.t().matmul(by_local)
+    else:
+        g_local = matvec_AT(by_local)
+
+    # ----------------------------
+    # Objective value (distributed)
+    # ----------------------------
+    def compute_objective_current():
+        # hinge loss uses margin_local = b ⊙ (A x)
+        hinge_local = torch.clamp(1.0 - margin_local, min=0.0).to(torch.float64).sum()
         dist.all_reduce(hinge_local, op=dist.ReduceOp.SUM)
         hinge = hinge_local.item() / float(n)
 
         # Regularizer on x (replicated)
-        reg = float(lambda1) * torch.abs(x_vec).to(torch.float64).sum().item()
-        reg += 0.5 * float(lambda2) * (x_vec.to(torch.float64) ** 2).sum().item()
+        reg = float(lambda1) * torch.abs(x).to(torch.float64).sum().item()
+        reg += 0.5 * float(lambda2) * (x.to(torch.float64) ** 2).sum().item()
         return hinge + reg
 
-    init_measure = compute_objective(x)
+    # Results (rank 0 only)
+    results = Results() if rank == 0 else None
+    start_time = time.time()
+
+    init_measure = compute_objective_current()
     if rank == 0:
         logresult(results, 1, 0.0, init_measure)
 
@@ -491,7 +537,67 @@ def _aduca_torch_distributed_svm(problem: GMVIProblem,
     exit_flag = False
 
     # ----------------------------
-    # Main loop
+    # Incremental update helpers for sparse CSR
+    # ----------------------------
+    def _update_margin_from_x_block_sparse(col_start: int, col_end: int, dx_block):
+        """
+        Update margin_local += b_local ⊙ (A_local[:, col_start:col_end] @ dx_block)
+        using the CSR of A_local^T (shape d x n_local).
+        """
+        # Fast path: vectorized repeat_interleave
+        try:
+            p0 = int(AT_indptr[col_start])
+            p1 = int(AT_indptr[col_end])
+            if p1 <= p0:
+                return
+            rows = AT_indices[p0:p1]    # indices in [0, n_local)
+            vals = AT_values[p0:p1]     # A[row, col] values
+            counts = AT_row_nnz_t[col_start:col_end]
+            dx_rep = torch.repeat_interleave(dx_block, counts)
+            contrib = vals * dx_rep
+            margin_local.index_add_(0, rows, contrib * b_local.index_select(0, rows))
+            return
+        except Exception:
+            # Fallback: per-feature loop (robust, but slower if block is huge)
+            for j in range(col_start, col_end):
+                p0 = int(AT_indptr[j])
+                p1 = int(AT_indptr[j + 1])
+                if p1 <= p0:
+                    continue
+                rows = AT_indices[p0:p1]
+                vals = AT_values[p0:p1]
+                margin_local.index_add_(0, rows, vals * dx_block[j - col_start] * b_local.index_select(0, rows))
+
+    def _update_g_from_y_rows_sparse(row_start: int, row_end: int, delta_by):
+        """
+        Update g_local += A_local[row_start:row_end, :]^T @ delta_by
+        using the CSR of A_local (shape n_local x d).
+        """
+        # Fast path: vectorized repeat_interleave
+        try:
+            p0 = int(A_indptr[row_start])
+            p1 = int(A_indptr[row_end])
+            if p1 <= p0:
+                return
+            cols = A_indices[p0:p1]   # feature indices in [0, d)
+            vals = A_values[p0:p1]
+            counts = A_row_nnz_t[row_start:row_end]
+            scale_rep = torch.repeat_interleave(delta_by, counts)
+            g_local.index_add_(0, cols, vals * scale_rep)
+            return
+        except Exception:
+            # Fallback: per-row loop
+            for r in range(row_start, row_end):
+                p0 = int(A_indptr[r])
+                p1 = int(A_indptr[r + 1])
+                if p1 <= p0:
+                    continue
+                cols = A_indices[p0:p1]
+                vals = A_values[p0:p1]
+                g_local.index_add_(0, cols, vals * delta_by[r - row_start])
+
+    # ----------------------------
+    # Main loop (one iteration = one full block sweep over x then y)
     # ----------------------------
     while not exit_flag:
         # Step size selection (distributed)
@@ -545,36 +651,77 @@ def _aduca_torch_distributed_svm(problem: GMVIProblem,
         Fbar_x = tilde_x + ratio_bar * (F_x_prev - tilde_x_prev)
         Fbar_y = tilde_y + ratio_bar * (F_y_prev - tilde_y_prev)
 
-        # v = (1-beta) u + beta v_prev
+        # v = (1-beta) u + beta v_prev  (computed ONCE per cycle, as in NumPy code)
         vx = (1.0 - beta) * x + beta * vx_prev
         vy = (1.0 - beta) * y + beta * vy_prev
 
-        # Save previous iterate
+        # Save previous iterate (cycle boundary)
         x_prev = x.clone()
         y_prev = y.clone()
 
-        # Prox step (diagonal scaling)
-        z_x = vx - a_curr * (normalizer_x * Fbar_x)
-        tau_x = a_curr * normalizer_x
-        x_new = _prox_elastic_net_torch(z_x, tau_x, lambda1, lambda2)
+        # ------------------------------------------------------------
+        # 1) x-block sweep (replicated across ranks)
+        #    Only margin_local (hence F_y) changes incrementally.
+        # ------------------------------------------------------------
+        for s in range(0, d, block_size):
+            e = min(d, s + block_size)
 
-        z_y = vy - a_curr * (normalizer_y * Fbar_y)
-        y_new = torch.clamp(z_y, min=-1.0, max=0.0)
+            z_x_blk = vx[s:e] - a_curr * (normalizer_x[s:e] * Fbar_x[s:e])
+            tau_x_blk = a_curr * normalizer_x[s:e]
+            x_new_blk = _prox_elastic_net_torch(z_x_blk, tau_x_blk, lambda1, lambda2)
 
-        # Update v_prev
-        vx_prev = vx
-        vy_prev = vy
+            dx_blk = x_new_blk - x[s:e]
+            if torch.any(dx_blk != 0):
+                x[s:e] = x_new_blk
 
-        # Compute new operator values F(u_{k+1})
-        F_x_new, F_y_new = compute_F_parts(x_new, y_new)
+                # Incremental update: margin_local += b_local ⊙ (A[:, s:e] @ dx_blk)
+                if use_dense:
+                    delta_ax = A_local_dense[:, s:e].matmul(dx_blk)
+                    margin_local += b_local * delta_ax
+                else:
+                    _update_margin_from_x_block_sparse(s, e, dx_blk)
 
-        # Build new tilde:
-        #   tilde_{k+1,x} = F_x(y_k) = current F_x
-        #   tilde_{k+1,y} = F_y(x_{k+1}) = F_y_new (since depends only on x_new)
-        tilde_x_new = F_x.clone()
-        tilde_y_new = F_y_new.clone()
+        # After x sweep: update F_y (depends only on x)
+        F_y_new = (1.0 - margin_local) / float(n)
 
+        # tilde_y for the NEXT cycle equals F_y(x_{k+1}) (same for all y-blocks)
+        tilde_y_next = F_y_new.clone()
+
+        # ------------------------------------------------------------
+        # 2) y-block sweep (local only)
+        #    Only g_local (hence F_x) changes incrementally.
+        # ------------------------------------------------------------
+        # tilde_x for the NEXT cycle equals F_x(y_k) (same for all x-blocks)
+        tilde_x_next = F_x.clone()
+
+        for s in range(0, n_local, block_size_2):
+            e = min(n_local, s + block_size_2)
+
+            z_y_blk = vy[s:e] - a_curr * (normalizer_y[s:e] * Fbar_y[s:e])
+            y_new_blk = torch.clamp(z_y_blk, min=-1.0, max=0.0)
+
+            dy_blk = y_new_blk - y[s:e]
+            if torch.any(dy_blk != 0):
+                y[s:e] = y_new_blk
+
+                # by_local = b_local ⊙ y
+                delta_by = b_local[s:e] * dy_blk
+                by_local[s:e] += delta_by
+
+                # Incremental update: g_local += A^T @ delta_by using rows s:e
+                if use_dense:
+                    g_local += A_local_dense[s:e].t().matmul(delta_by)
+                else:
+                    _update_g_from_y_rows_sparse(s, e, delta_by)
+
+        # After y sweep: update F_x (depends only on y)
+        g_global = g_local.clone()
+        dist.all_reduce(g_global, op=dist.ReduceOp.SUM)
+        F_x_new = g_global / float(n)
+
+        # ------------------------------------------------------------
         # Shift stored operator values for next iteration
+        # ------------------------------------------------------------
         F_x_prev = F_x
         F_y_prev = F_y
         F_x = F_x_new
@@ -582,12 +729,12 @@ def _aduca_torch_distributed_svm(problem: GMVIProblem,
 
         tilde_x_prev = tilde_x
         tilde_y_prev = tilde_y
-        tilde_x = tilde_x_new
-        tilde_y = tilde_y_new
+        tilde_x = tilde_x_next
+        tilde_y = tilde_y_next
 
-        # Update iterate
-        x = x_new
-        y = y_new
+        # Update v_prev (stored at cycle boundary)
+        vx_prev = vx
+        vy_prev = vy
 
         # Increment iteration counters
         k += m
@@ -595,7 +742,7 @@ def _aduca_torch_distributed_svm(problem: GMVIProblem,
         # Logging and exit checks
         if k % (m * exit_criterion.loggingfreq) == 0:
             elapsed = time.time() - start_time
-            measure = compute_objective(x)
+            measure = compute_objective_current()
 
             if rank == 0:
                 logging.info(f"[torch_dist] elapsed_time: {elapsed:.4f}, iteration: {k}, opt_measure: {measure}")
@@ -633,6 +780,10 @@ def _aduca_torch_distributed_svm(problem: GMVIProblem,
     # Non-zero ranks return dummy outputs (caller should not serialize them)
     return Results(), np.zeros((d + n,), dtype=np.float32)
 
+
+# ============================================================
+# Original NumPy implementation (kept for backwards compatibility)
+# ============================================================
 
 def _aduca_numpy_reference(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters, u_0=None):
     """
@@ -856,6 +1007,10 @@ def _aduca_numpy_reference(problem: GMVIProblem, exit_criterion: ExitCriterion, 
     return results, u
 
 
+# ============================================================
+# Public entry point
+# ============================================================
+
 def aduca_distributed(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters, u_0=None):
     """
     Unified entry point.
@@ -863,6 +1018,8 @@ def aduca_distributed(problem: GMVIProblem, exit_criterion: ExitCriterion, param
     - Default: original NumPy implementation (single-process).
     - Set parameters["backend"] = "torch_dist" (or parameters["torch_distributed"]=True) to enable
       PyTorch Distributed (multi-process, multi-GPU).
+
+    NOTE: The torch_dist backend is currently specialized for the SVM saddle-point problem.
     """
     backend = str(parameters.get("backend", "numpy")).lower()
     if parameters.get("torch_distributed", True) or backend in ("torch_dist", "torch_distributed", "ddp", "pytorch_dist"):

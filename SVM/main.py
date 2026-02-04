@@ -8,20 +8,28 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Datasets to run (files must exist in ./data)
 datasets = [
-    # 'a9a',
-    # 'gisette_scale.bz2',
-    # 'w8a',
-    # 'real-sim',
-    # 'epsilon_normalized.t.bz2',
-    # 'rcv1_train.binary.bz2',
-    "news20.binary.bz2",
+    'a9a',
+    'gisette_scale.bz2',
+    'w8a',
+    'real-sim',
+    'epsilon_normalized.t.bz2',
+    'rcv1_train.binary.bz2',
+    # "news20.binary.bz2",
 ]
 
 DIST_ALGO_NAME = 'ADUCA_TORCH_DIST'
 
 # GPU visibility (set to None to use the existing environment)
-cuda_visible_devices = "0,1,2,3,4,5,6,7"
+cuda_visible_devices = "0,1,2,3"
 nproc_per_node = 8  # number of GPUs to use
+env = os.environ.copy()
+if cuda_visible_devices is not None:
+    if isinstance(cuda_visible_devices, (list, tuple)):
+        env["CUDA_VISIBLE_DEVICES"] = ",".join(str(v) for v in cuda_visible_devices)
+    else:
+        env["CUDA_VISIBLE_DEVICES"] = str(cuda_visible_devices)
+
+dtype = 'float32'  # 'float32' or 'float64'
 
 # Strong convexity toggle for ADUCA_TORCH_DIST
 strong_convexity = False
@@ -37,7 +45,7 @@ algorithms = [
     # 'PCCM',
     # 'GR',
     # 'GR_normalized',
-    'GR_TORCH',
+    # 'GR_TORCH',
     # 'GR_TORCH_normalized',
     # 'ADUCA',
     DIST_ALGO_NAME,
@@ -63,49 +71,55 @@ base_params = {
     'lambda1': 1e-4,
     'lambda2': 1e-4,
     'mu': 1e-4,
-    'block_size': 16384,
-    'block_size_2': 128,
+    'block_size': 64,
+    'block_size_2': 512,
     'loggingfreq': 20,
 }
 
 # Per-dataset overrides (edit as needed)
 dataset_params = {
     'a9a': {
-        'maxiter': 3_000_000, 
+        'maxiter': 1_100_000, 
         'lipschitz': 
         # 0.014,
         0.0006, # preconditioned
     },
     'gisette_scale.bz2': {
-        'maxiter': 100_000_000, 
+        'maxiter': 1_100_000, 
         'maxtime': 600,
         'lipschitz': 
-        0.75,
-        # 0.01, # preconditioned
+        # 0.75,
+        0.01, # preconditioned
     },
     'w8a': {
-        'maxiter': 3_000_000, 
+        'maxiter': 1_100_000, 
         'lipschitz': 
         # 0.007, 
         0.0004, # preconditioned
     },
     'real-sim': {
-        'maxiter': 1_000_000, 
+        'maxiter': 1_100_000, 
         'lipschitz': 
         # 0.0004, 
         0.0002, # preconditioned
+        'block_size': 512,
+        'block_size_2': 512,
     },
     'epsilon_normalized.t.bz2': {
-        'maxiter': 2_000_000, 
+        'maxiter': 1_100_000, 
         'lipschitz': 
-        0.002,
-        # 0.0007, # preconditioned
+        # 0.002,
+        0.0007, # preconditioned
+        'block_size': 64,
+        'block_size_2': 2048,
     },
     'rcv1_train.binary.bz2': {
-        'maxiter': 50_000_000, 
+        'maxiter': 1_100_000, 
         'lipschitz':
         # 0.001,
         0.0006, # preconditioned
+        'block_size': 1024,
+        'block_size_2': 1024,
     },
     "news20.binary.bz2": {
         'maxiter': 10_000_000,
@@ -136,7 +150,7 @@ algorithm_param_sets = {
     ],
     DIST_ALGO_NAME: [
         # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.3, 'dist_backend': 'nccl'},
-        # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 0,},
+        {'beta': 0.7, 'gamma': 0.05, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 0,},
         # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-1,},
         # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-2,},
         # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-3,},
@@ -148,14 +162,14 @@ algorithm_param_sets = {
         # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.3, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-3,},
         # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.3, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-4,},
         # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.3, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-5,},
-        {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 0,},
+        {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'mu': 0,},
         # {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-1,},
         # {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-2,},
         # {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-3,},
         # {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-4},
         # {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-5,},
         # {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl'},
-        # {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 0,},
+        {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 0,},
         # {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-1,},
         # {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-2,},
         # {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-3,},
@@ -227,6 +241,8 @@ def run_task(ds: str, algo: str, variant_idx=None, variant_overrides=None):
     if algo == DIST_ALGO_NAME:
         if strong_convexity:
             params['strong_convexity'] = True
+        if dtype is not None:
+            params['dtype'] = dtype
         ### Distributed run with --nproc_per_node=j for using j GPUs
         master_port = _find_free_port()
         cmd = ['torchrun', 
@@ -256,7 +272,7 @@ def run_task(ds: str, algo: str, variant_idx=None, variant_overrides=None):
 
     with open(log_path, 'w') as logf:
         logf.write('Command: ' + ' '.join(cmd) + '\n\n')
-        result = subprocess.run(cmd, cwd='.', stdout=logf, stderr=subprocess.STDOUT)
+        result = subprocess.run(cmd, cwd='.', env=env, stdout=logf, stderr=subprocess.STDOUT)
     return ds, algo, variant_suffix, result.returncode, log_path
 
 
