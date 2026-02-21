@@ -603,7 +603,7 @@ def coder_linesearch_normalized(problem: GMVIProblem, exitcriterion: ExitCriteri
         if iteration % (m * exitcriterion.loggingfreq) == 0:
             logging.info(f"L (linesearch) = {L}")
             elapsed_time = time.time() - starttime
-            opt_measure = problem.func_value(x_tilde)
+            opt_measure = problem.func_value(x)
             logging.info(f"Elapsed time: {elapsed_time}, Iteration: {iteration}, Opt measure: {opt_measure}")
             logresult(results, iteration, elapsed_time, opt_measure, L=L)
             exitflag = CheckExitCondition(exitcriterion, iteration, elapsed_time, opt_measure)

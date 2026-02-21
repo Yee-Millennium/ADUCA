@@ -8,19 +8,17 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Datasets to run (files must exist in ./data)
 datasets = [
-    'a9a',
-    'gisette_scale.bz2',
-    'w8a',
-    'real-sim',
-    'epsilon_normalized.t.bz2',
-    'rcv1_train.binary.bz2',
+    # 'a9a',
+    # 'gisette_scale.bz2',
+    # 'w8a',
+    # 'real-sim',
+    # 'epsilon_normalized.t.bz2',
+    # 'rcv1_train.binary.bz2',
     # "news20.binary.bz2",
 ]
 
-DIST_ALGO_NAME = 'ADUCA_TORCH_DIST'
-
 # GPU visibility (set to None to use the existing environment)
-cuda_visible_devices = "0,1,2,3"
+cuda_visible_devices = "0,1,2,3,4,5,6,7"
 nproc_per_node = 8  # number of GPUs to use
 env = os.environ.copy()
 if cuda_visible_devices is not None:
@@ -29,10 +27,10 @@ if cuda_visible_devices is not None:
     else:
         env["CUDA_VISIBLE_DEVICES"] = str(cuda_visible_devices)
 
-dtype = 'float32'  # 'float32' or 'float64'
+dtype = 'float64'  # 'float32' or 'float64'
 
 # Strong convexity toggle for ADUCA_TORCH_DIST
-strong_convexity = False
+strong_convexity = False   # Only for extrapolation term; do not change the stepsizes
 
 DIST_BOOL_PARAMS = {'use_dense', 'strong_convexity'}
 
@@ -43,12 +41,10 @@ algorithms = [
     # 'CODER_linesearch_normalized',
     # 'PCCM_normalized',
     # 'PCCM',
-    # 'GR',
-    # 'GR_normalized',
-    # 'GR_TORCH',
-    # 'GR_TORCH_normalized',
+    'GR',
+    'GR_normalized',
     # 'ADUCA',
-    DIST_ALGO_NAME,
+    'ADUCA_TORCH_DIST',
 ]
 
 # Output directories
@@ -79,50 +75,43 @@ base_params = {
 # Per-dataset overrides (edit as needed)
 dataset_params = {
     'a9a': {
-        'maxiter': 1_100_000, 
+        'maxiter': 100_000, 
         'lipschitz': 
-        # 0.014,
-        0.0006, # preconditioned
+        0.014,
+        # 0.0006, # preconditioned
     },
     'gisette_scale.bz2': {
-        'maxiter': 1_100_000, 
-        'maxtime': 600,
+        'maxiter': 100_000, 
         'lipschitz': 
-        # 0.75,
-        0.01, # preconditioned
+        0.75,
+        # 0.01, # preconditioned
+    },
+    'epsilon_normalized.t.bz2': {
+        'maxiter': 100_000, 
+        'lipschitz': 
+        0.002,
+        # 0.0007, # preconditioned
     },
     'w8a': {
-        'maxiter': 1_100_000, 
+        'maxiter': 100_000, 
         'lipschitz': 
         # 0.007, 
         0.0004, # preconditioned
     },
     'real-sim': {
-        'maxiter': 1_100_000, 
+        'maxiter': 100_000, 
         'lipschitz': 
         # 0.0004, 
         0.0002, # preconditioned
-        'block_size': 512,
-        'block_size_2': 512,
-    },
-    'epsilon_normalized.t.bz2': {
-        'maxiter': 1_100_000, 
-        'lipschitz': 
-        # 0.002,
-        0.0007, # preconditioned
-        'block_size': 64,
-        'block_size_2': 2048,
     },
     'rcv1_train.binary.bz2': {
-        'maxiter': 1_100_000, 
+        'maxiter': 100_000, 
         'lipschitz':
         # 0.001,
         0.0006, # preconditioned
-        'block_size': 1024,
-        'block_size_2': 1024,
     },
     "news20.binary.bz2": {
-        'maxiter': 10_000_000,
+        'maxiter': 100_000,
         'lipschitz':
         0.0005,
     },
@@ -150,7 +139,7 @@ algorithm_param_sets = {
     ],
     DIST_ALGO_NAME: [
         # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.3, 'dist_backend': 'nccl'},
-        {'beta': 0.7, 'gamma': 0.05, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 0,},
+        {'beta': 0.7, 'gamma': 0.05, 'rho': 1.2, 'mu': 0,},
         # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-1,},
         # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-2,},
         # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-3,},
@@ -169,7 +158,7 @@ algorithm_param_sets = {
         # {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-4},
         # {'beta': 0.8, 'gamma': 0.2, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-5,},
         # {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl'},
-        {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 0,},
+        {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'mu': 0,},
         # {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-1,},
         # {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-2,},
         # {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-3,},
