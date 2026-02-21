@@ -137,7 +137,7 @@ algorithm_param_sets = {
         # {'beta': 0.85, 'gamma': 0.3, 'rho': 1.1},
         {'beta': 0.9, 'gamma': 0.3, 'rho': 1.1},
     ],
-    DIST_ALGO_NAME: [
+    'ADUCA_TORCH_DIST': [
         # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.3, 'dist_backend': 'nccl'},
         {'beta': 0.7, 'gamma': 0.05, 'rho': 1.2, 'mu': 0,},
         # {'beta': 0.7, 'gamma': 0.05, 'rho': 1.2, 'dist_backend': 'nccl', 'dtype': 'float32', 'mu': 1e-1,},
@@ -227,7 +227,7 @@ def run_task(ds: str, algo: str, variant_idx=None, variant_overrides=None):
     # env.setdefault("NCCL_DEBUG", "WARN")
     # env.setdefault("NCCL_IB_DISABLE", "1")
 
-    if algo == DIST_ALGO_NAME:
+    if algo == 'ADUCA_TORCH_DIST':
         if strong_convexity:
             params['strong_convexity'] = True
         if dtype is not None:
