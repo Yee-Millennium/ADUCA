@@ -348,9 +348,9 @@ def aduca_torch(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters,
             F_prev, F = F, F_new
             v_prev, v = v, v_prev
 
-            k += m
+            k += 1
 
-            if k % (m * exit_criterion.loggingfreq) == 0:
+            if k % exit_criterion.loggingfreq == 0:
                 elapsed = time.time() - start_time
                 opt_measure = compute_opt_measure(
                     opt_kind,

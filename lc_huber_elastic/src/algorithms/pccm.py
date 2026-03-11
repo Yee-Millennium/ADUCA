@@ -152,9 +152,9 @@ def _pccm_impl(
 
         # End epoch
         F_store = oracle.func_map_with_state(x, Au, ATv, r2)
-        iteration += m
+        iteration += 1
 
-        if (iteration // m) % int(exitcriterion.loggingfreq) == 0:
+        if iteration % int(exitcriterion.loggingfreq) == 0:
             opt_measure = compute_opt_measure(
                 opt_kind,
                 x=x,

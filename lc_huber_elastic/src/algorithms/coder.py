@@ -211,9 +211,9 @@ def _coder_impl(
 
             # end epoch
             F_store = oracle.func_map_with_state(x, Au, ATv, r2)
-            iteration += m
+            iteration += 1
 
-            if (iteration // m) % int(exitcriterion.loggingfreq) == 0:
+            if iteration % int(exitcriterion.loggingfreq) == 0:
                 opt_measure = compute_opt_measure(
                     opt_kind,
                     x=x,
@@ -354,11 +354,11 @@ def _coder_impl(
             else:
                 L_cur = min(L_max, 2.0 * L_cur)
                 backtrack += 1
-                iteration += m # count backtrack as work
+                iteration += 1  # count each rejected full pass
 
-        iteration += m
+        iteration += 1
 
-        if (iteration // m) % int(exitcriterion.loggingfreq) == 0:
+        if iteration % int(exitcriterion.loggingfreq) == 0:
             opt_measure = compute_opt_measure(
                 opt_kind,
                 x=x,

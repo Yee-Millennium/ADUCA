@@ -177,9 +177,9 @@ def gr_torch(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters, x0
             Au_cur, ATv_cur, r2_cur = oracle.compute_state(x_cur)
             F_prev = F
             F = oracle.func_map_with_state(x_cur, Au_cur, ATv_cur, r2_cur)
-            k += m
+            k += 1
 
-            if k % (m * int(exit_criterion.loggingfreq)) == 0:
+            if k % int(exit_criterion.loggingfreq) == 0:
                 opt_measure = compute_opt_measure(
                     opt_kind,
                     x=x_cur,
