@@ -232,7 +232,7 @@ def gr_torch(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters, x_
     start_time = time.time()
     results = Results()
     init_opt_measure = problem.func_value(x_0_t.detach().cpu().numpy())
-    logresult(results, 1, 0.0, init_opt_measure)
+    logresult(results, 0, 0.0, init_opt_measure)
 
     lambda1 = float(problem.g_func.lambda1)
     lambda2 = float(problem.g_func.lambda2)
@@ -261,8 +261,8 @@ def gr_torch(problem: GMVIProblem, exit_criterion: ExitCriterion, parameters, x_
 
             x_hat = (A - a) / A * x_hat + a / A * x
 
-            iteration += m
-            if iteration % (m * exit_criterion.loggingfreq) == 0:
+            iteration += 1
+            if iteration % exit_criterion.loggingfreq == 0:
                 elapsed_time = time.time() - start_time
                 opt_measure = problem.func_value(x.detach().cpu().numpy())
                 logging.info(f"elapsed_time: {elapsed_time}, iteration: {iteration}, opt_measure: {opt_measure}")
@@ -346,7 +346,7 @@ def gr_torch_normalized(problem: GMVIProblem, exit_criterion: ExitCriterion, par
     start_time = time.time()
     results = Results()
     init_opt_measure = problem.func_value(x_0_t.detach().cpu().numpy())
-    logresult(results, 1, 0.0, init_opt_measure)
+    logresult(results, 0, 0.0, init_opt_measure)
 
     lambda1 = float(problem.g_func.lambda1)
     lambda2 = float(problem.g_func.lambda2)
@@ -381,8 +381,8 @@ def gr_torch_normalized(problem: GMVIProblem, exit_criterion: ExitCriterion, par
 
             x_hat = (A - a) / A * x_hat + a / A * x
 
-            iteration += m
-            if iteration % (m * exit_criterion.loggingfreq) == 0:
+            iteration += 1
+            if iteration % exit_criterion.loggingfreq == 0:
                 elapsed_time = time.time() - start_time
                 opt_measure = problem.func_value(x.detach().cpu().numpy())
                 logging.info(f"elapsed_time: {elapsed_time}, iteration: {iteration}, opt_measure: {opt_measure}")
